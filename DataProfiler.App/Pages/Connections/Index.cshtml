@@ -1,0 +1,70 @@
+@page
+@model DataProfiler.App.Pages.Connections.IndexModel
+@{
+    ViewData["Title"] = "Connection";
+}
+
+<h1>Connection</h1>
+<p class="text-muted">Enter the SQL Server connection details for the current session.</p>
+<div class="alert alert-info py-2" id="connectionModeNote" role="alert">
+    Windows trusted authentication pass-through is selected by default when the current Windows account already has SQL permissions.
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <form method="post" class="card card-body shadow-sm">
+            <div class="mb-3">
+                <label asp-for="Input.ServerName" class="form-label"></label>
+                <input asp-for="Input.ServerName" class="form-control" />
+            </div>
+            <div class="mb-3">
+                <label asp-for="Input.AuthenticationMethod" class="form-label"></label>
+                <select asp-for="Input.AuthenticationMethod" class="form-select" asp-items="Model.AuthenticationMethods" id="authenticationMethod"></select>
+                <div class="form-text">Use Windows trusted authentication pass-through when your current Windows account already has SQL permissions.</div>
+            </div>
+            <div class="mb-3" id="credentialFields">
+                <label asp-for="Input.UserName" class="form-label"></label>
+                <input asp-for="Input.UserName" class="form-control" id="userName" />
+                <div class="form-text">Required only for SQL Server authentication.</div>
+            </div>
+            <div class="mb-3" id="passwordField">
+                <label asp-for="Input.Password" class="form-label"></label>
+                <input asp-for="Input.Password" class="form-control" type="password" id="password" />
+                <div class="form-text">Required only for SQL Server authentication.</div>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <button type="submit" class="btn btn-primary">Connect</button>
+                <span class="text-muted">@Model.StatusMessage</span>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const authMethod = document.getElementById('authenticationMethod');
+            const credentialFields = document.getElementById('credentialFields');
+            const passwordField = document.getElementById('passwordField');
+            const userName = document.getElementById('userName');
+            const password = document.getElementById('password');
+            const note = document.getElementById('connectionModeNote');
+            const windowsTrustedValue = 'WindowsTrustedPassThrough';
+
+            function toggleCredentialFields() {
+                const useWindowsTrusted = authMethod.value === windowsTrustedValue;
+
+                credentialFields.classList.toggle('d-none', useWindowsTrusted);
+                passwordField.classList.toggle('d-none', useWindowsTrusted);
+                userName.disabled = useWindowsTrusted;
+                password.disabled = useWindowsTrusted;
+                note.textContent = useWindowsTrusted
+                    ? 'Windows trusted authentication pass-through is selected. No SQL credentials are required if the current Windows account already has SQL permissions.'
+                    : 'SQL Server authentication is selected. Enter a user name and password.';
+            }
+
+            authMethod.addEventListener('change', toggleCredentialFields);
+            toggleCredentialFields();
+        })();
+    </script>
+}

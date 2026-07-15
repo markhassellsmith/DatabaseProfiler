@@ -1,0 +1,103 @@
+@page
+@model DataProfiler.App.Pages.Schema.IndexModel
+@{
+    ViewData["Title"] = "Schema Browser";
+}
+
+<h1>Schema Browser</h1>
+<p class="text-muted">Review the discovered schema and programmable objects for the selected database.</p>
+
+<div class="alert alert-secondary py-2">
+    <strong>Database:</strong> @Model.ViewModel.DatabaseName
+    <span class="ms-3"><strong>Status:</strong> @Model.StatusMessage</span>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <form method="post" class="card card-body shadow-sm">
+            <div class="mb-3">
+                <label asp-for="SelectedTableName" class="form-label"></label>
+                <select asp-for="SelectedTableName" class="form-select" asp-items="Model.TableNames"></select>
+            </div>
+            <button type="submit" class="btn btn-primary">Refresh Schema</button>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-header">Functions</div>
+            <ul class="list-group list-group-flush">
+                @foreach (var functionName in Model.ViewModel.Functions)
+                {
+                    <li class="list-group-item">@functionName</li>
+                }
+            </ul>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-header">Stored Procedures</div>
+            <ul class="list-group list-group-flush">
+                @foreach (var storedProcedureName in Model.ViewModel.StoredProcedures)
+                {
+                    <li class="list-group-item">@storedProcedureName</li>
+                }
+            </ul>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-header">Tables</div>
+            <ul class="list-group list-group-flush">
+                @foreach (var tableName in Model.ViewModel.Tables)
+                {
+                    <li class="list-group-item">@tableName</li>
+                }
+            </ul>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-header">Views</div>
+            <ul class="list-group list-group-flush">
+                @foreach (var viewName in Model.ViewModel.Views)
+                {
+                    <li class="list-group-item">@viewName</li>
+                }
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        Columns for @Model.ViewModel.SelectedTableName
+    </div>
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Data Type</th>
+                    <th>Default</th>
+                    <th>Metadata</th>
+                    <th>Nullable</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var column in Model.ViewModel.Columns)
+                {
+                    <tr>
+                        <td>@column.Name</td>
+                        <td>@column.DataType</td>
+                        <td>@column.DefaultValue</td>
+                        <td>@column.Metadata</td>
+                        <td>@(column.IsNullable ? "Yes" : "No")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
