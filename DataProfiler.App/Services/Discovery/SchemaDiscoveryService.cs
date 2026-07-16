@@ -257,6 +257,7 @@ public sealed class SchemaDiscoveryService
                 IsPrimaryKey = reader.GetBoolean(isPrimaryKeyOrdinal),
                 Metadata = GetMetadata(reader, columnIdOrdinal, isPrimaryKeyOrdinal, isIndexedOrdinal),
                 LengthDisplay = GetLengthDisplay(reader, maxLengthOrdinal, dataTypeOrdinal),
+                LengthSortValue = GetLengthSortValue(reader, maxLengthOrdinal, dataTypeOrdinal),
                 Name = reader.GetString(columnNameOrdinal),
                 Ordinal = reader.GetInt32(columnIdOrdinal),
                 SchemaName = schemaName,
@@ -517,6 +518,29 @@ public sealed class SchemaDiscoveryService
         }
 
         return string.Empty;
+    }
+
+    private static int? GetLengthSortValue(SqlDataReader reader, int maxLengthOrdinal, int dataTypeOrdinal)
+    {
+        var dataType = reader.GetString(dataTypeOrdinal).Trim();
+        var maxLength = reader.GetInt16(maxLengthOrdinal);
+
+        if (maxLength < 0)
+        {
+            return int.MaxValue;
+        }
+
+        if (IsUnicodeCharacterType(dataType))
+        {
+            return maxLength / 2;
+        }
+
+        if (IsCharacterType(dataType) || IsBinaryType(dataType))
+        {
+            return maxLength;
+        }
+
+        return null;
     }
 
     private static bool IsCharacterType(string dataType)

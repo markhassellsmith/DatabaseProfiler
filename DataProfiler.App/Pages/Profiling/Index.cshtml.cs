@@ -25,7 +25,13 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string? SelectedTableName { get; set; }
 
-    [BindProperty]
+    [BindProperty(SupportsGet = true)]
+    public string? SortColumn { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public bool? SortDescending { get; set; }
+
+    [BindProperty(SupportsGet = true)]
     public string? SelectedTableSelectionValue { get; set; }
 
     public ProfilingViewModel ViewModel { get; private set; } = new();
@@ -33,6 +39,10 @@ public class IndexModel : PageModel
     public SelectList TableNames { get; private set; } = default!;
 
     public string? StatusMessage { get; private set; }
+
+    private static readonly StringComparer SortComparer = StringComparer.OrdinalIgnoreCase;
+
+    private static readonly string[] SortableColumns = ["Ordinal", "Name"];
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -58,6 +68,9 @@ public class IndexModel : PageModel
         }
 
         SelectedDatabaseName ??= connection.SelectedDatabaseName;
+
+        SortColumn = NormalizeSortColumn(SortColumn ?? connection.ProfilingSortColumn);
+        SortDescending ??= connection.ProfilingSortDescending;
 
         if (string.IsNullOrWhiteSpace(SelectedTableSelectionValue)
             && string.Equals(connection.SelectedObjectKind, "Table", StringComparison.OrdinalIgnoreCase)
@@ -91,7 +104,32 @@ public class IndexModel : PageModel
         SelectedTableName = ViewModel.SelectedTableName;
         TableNames = new SelectList(ViewModel.Tables, nameof(SchemaTableModel.SelectionValue), nameof(SchemaTableModel.DisplayName), SelectedTableSelectionValue);
         HttpContext.Session.SetTableSelection(SelectedDatabaseName, SelectedTableSchemaName, SelectedTableName);
+
+        ViewModel.Columns = SortColumns(ViewModel.Columns, SortColumn, SortDescending.GetValueOrDefault());
+        HttpContext.Session.SetProfilingSort(SortColumn, SortDescending.GetValueOrDefault());
         StatusMessage = null;
+    }
+
+    public bool IsActiveSortColumn(string columnName)
+    {
+        return string.Equals(SortColumn, columnName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public bool GetNextSortDescending(string columnName)
+    {
+        return IsActiveSortColumn(columnName)
+            ? !SortDescending.GetValueOrDefault()
+            : false;
+    }
+
+    public string GetSortIndicator(string columnName)
+    {
+        if (!IsActiveSortColumn(columnName))
+        {
+            return string.Empty;
+        }
+
+        return SortDescending.GetValueOrDefault() ? "▼" : "▲";
     }
 
     private void ApplySelectedTableSelection()
@@ -111,5 +149,30 @@ public class IndexModel : PageModel
         {
             SelectedTableSelectionValue = $"{SelectedTableSchemaName}|{SelectedTableName}";
         }
+    }
+
+    private static string NormalizeSortColumn(string? sortColumn)
+    {
+        if (string.IsNullOrWhiteSpace(sortColumn))
+        {
+            return "Name";
+        }
+
+        return SortableColumns.Any(column => SortComparer.Equals(column, sortColumn))
+            ? sortColumn
+            : "Name";
+    }
+
+    private static IReadOnlyList<ColumnProfileModel> SortColumns(IReadOnlyList<ColumnProfileModel> columns, string? sortColumn, bool sortDescending)
+    {
+        return (sortColumn ?? "Name").ToLowerInvariant() switch
+        {
+            "ordinal" => sortDescending
+                ? columns.OrderByDescending(column => column.Ordinal).ThenBy(column => column.Name, SortComparer).ToList()
+                : columns.OrderBy(column => column.Ordinal).ThenBy(column => column.Name, SortComparer).ToList(),
+            _ => sortDescending
+                ? columns.OrderByDescending(column => column.Name, SortComparer).ThenBy(column => column.Ordinal).ToList()
+                : columns.OrderBy(column => column.Name, SortComparer).ThenBy(column => column.Ordinal).ToList()
+        };
     }
 }

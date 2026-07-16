@@ -36,6 +36,8 @@
             <input type="hidden" asp-for="SelectedDatabaseName" />
             <input type="hidden" asp-for="SelectedTableSchemaName" />
             <input type="hidden" asp-for="SelectedTableName" />
+            <input type="hidden" asp-for="SortColumn" />
+            <input type="hidden" asp-for="SortDescending" />
             <button type="submit" class="btn btn-primary">Refresh Profile</button>
         </form>
     </div>
@@ -88,8 +90,26 @@
         <table class="table table-sm table-hover mb-0 align-middle profiling-results-grid">
             <thead>
                 <tr>
-                    <th>Ordinal</th>
-                    <th>Name</th>
+                    <th>
+                        <a asp-page="/Profiling/Index"
+                           asp-route-SelectedDatabaseName="@Model.SelectedDatabaseName"
+                           asp-route-SelectedTableSelectionValue="@Model.SelectedTableSelectionValue"
+                           asp-route-SortColumn="Ordinal"
+                           asp-route-SortDescending="@Model.GetNextSortDescending("Ordinal")"
+                           class="schema-browser-sort-link">
+                            Ordinal @Model.GetSortIndicator("Ordinal")
+                        </a>
+                    </th>
+                    <th>
+                        <a asp-page="/Profiling/Index"
+                           asp-route-SelectedDatabaseName="@Model.SelectedDatabaseName"
+                           asp-route-SelectedTableSelectionValue="@Model.SelectedTableSelectionValue"
+                           asp-route-SortColumn="Name"
+                           asp-route-SortDescending="@Model.GetNextSortDescending("Name")"
+                           class="schema-browser-sort-link">
+                            Name @Model.GetSortIndicator("Name")
+                        </a>
+                    </th>
                     <th>Data Type</th>
                     <th data-bs-toggle="tooltip" title="Distinct non-null values in the column">CountDistinct</th>
                     <th data-bs-toggle="tooltip" title="Number of null values in the column">Null Count</th>

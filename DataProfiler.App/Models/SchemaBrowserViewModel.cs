@@ -65,6 +65,8 @@ public sealed class SchemaColumnModel
 
     public string LengthDisplay { get; set; } = string.Empty;
 
+    public int? LengthSortValue { get; set; }
+
     public string? DefaultValue { get; set; }
 
     public string Metadata { get; set; } = string.Empty;

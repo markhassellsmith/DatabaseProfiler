@@ -35,6 +35,8 @@
         <input type="hidden" asp-for="SelectedDatabaseName" />
         <input type="hidden" asp-for="SelectedTableSchemaName" />
         <input type="hidden" asp-for="SelectedTableName" />
+        <input type="hidden" asp-for="SortColumn" />
+        <input type="hidden" asp-for="SortDescending" />
         <button type="submit" class="btn btn-primary">Refresh Schema</button>
     </div>
 </form>
@@ -48,10 +50,50 @@
         <table class="table table-sm mb-0 align-middle">
             <thead>
                 <tr>
-                    <th>Ordinal</th>
-                    <th>Name</th>
-                    <th>Data Type</th>
-                    <th>Length</th>
+                    <th>
+                        <a asp-page="/ColumnBrowser/Index"
+                           asp-route-SelectedDatabaseName="@Model.SelectedDatabaseName"
+                           asp-route-SelectedTableSchemaName="@Model.SelectedTableSchemaName"
+                           asp-route-SelectedTableName="@Model.SelectedTableName"
+                           asp-route-SortColumn="Ordinal"
+                           asp-route-SortDescending="@Model.GetNextSortDescending("Ordinal")"
+                           class="schema-browser-sort-link">
+                            Ordinal @Model.GetSortIndicator("Ordinal")
+                        </a>
+                    </th>
+                    <th>
+                        <a asp-page="/ColumnBrowser/Index"
+                           asp-route-SelectedDatabaseName="@Model.SelectedDatabaseName"
+                           asp-route-SelectedTableSchemaName="@Model.SelectedTableSchemaName"
+                           asp-route-SelectedTableName="@Model.SelectedTableName"
+                           asp-route-SortColumn="Name"
+                           asp-route-SortDescending="@Model.GetNextSortDescending("Name")"
+                           class="schema-browser-sort-link">
+                            Name @Model.GetSortIndicator("Name")
+                        </a>
+                    </th>
+                    <th>
+                        <a asp-page="/ColumnBrowser/Index"
+                           asp-route-SelectedDatabaseName="@Model.SelectedDatabaseName"
+                           asp-route-SelectedTableSchemaName="@Model.SelectedTableSchemaName"
+                           asp-route-SelectedTableName="@Model.SelectedTableName"
+                           asp-route-SortColumn="DataType"
+                           asp-route-SortDescending="@Model.GetNextSortDescending("DataType")"
+                           class="schema-browser-sort-link">
+                            Data Type @Model.GetSortIndicator("DataType")
+                        </a>
+                    </th>
+                    <th>
+                        <a asp-page="/ColumnBrowser/Index"
+                           asp-route-SelectedDatabaseName="@Model.SelectedDatabaseName"
+                           asp-route-SelectedTableSchemaName="@Model.SelectedTableSchemaName"
+                           asp-route-SelectedTableName="@Model.SelectedTableName"
+                           asp-route-SortColumn="Length"
+                           asp-route-SortDescending="@Model.GetNextSortDescending("Length")"
+                           class="schema-browser-sort-link">
+                            Length @Model.GetSortIndicator("Length")
+                        </a>
+                    </th>
                     <th>Default</th>
                     <th>Nullable</th>
                     <th>PK</th>

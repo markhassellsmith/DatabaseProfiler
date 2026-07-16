@@ -9,6 +9,14 @@ public sealed class ConnectionSessionModel
 {
     public AuthenticationMethod AuthenticationMethod { get; set; }
 
+    public string? ColumnBrowserSortColumn { get; set; }
+
+    public bool ColumnBrowserSortDescending { get; set; }
+
+    public string? ProfilingSortColumn { get; set; }
+
+    public bool ProfilingSortDescending { get; set; }
+
     public string? Password { get; set; }
 
     public string? SelectedDatabaseName { get; set; }
@@ -109,6 +117,26 @@ public static class ConnectionSessionState
         connection.SelectedObjectSchemaName = selectedObjectSchemaName;
         connection.SelectedObjectName = selectedObjectName;
         connection.SelectedColumnName = null;
+        session.SetConnection(connection);
+    }
+
+    public static void SetColumnBrowserSort(this ISession session, string? sortColumn, bool sortDescending)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var connection = session.GetConnection() ?? new ConnectionSessionModel();
+        connection.ColumnBrowserSortColumn = sortColumn;
+        connection.ColumnBrowserSortDescending = sortDescending;
+        session.SetConnection(connection);
+    }
+
+    public static void SetProfilingSort(this ISession session, string? sortColumn, bool sortDescending)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var connection = session.GetConnection() ?? new ConnectionSessionModel();
+        connection.ProfilingSortColumn = sortColumn;
+        connection.ProfilingSortDescending = sortDescending;
         session.SetConnection(connection);
     }
 }
