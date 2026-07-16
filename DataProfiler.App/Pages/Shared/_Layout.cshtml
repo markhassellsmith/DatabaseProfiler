@@ -31,6 +31,7 @@
             var isOnProfilingPage = currentPath.StartsWith("/Profiling", StringComparison.OrdinalIgnoreCase);
             var isOnScriptBrowserPage = currentPath.StartsWith("/ScriptBrowser", StringComparison.OrdinalIgnoreCase);
             var isOnReportsPage = currentPath.StartsWith("/Reports", StringComparison.OrdinalIgnoreCase);
+            var hasServer = !string.IsNullOrWhiteSpace(connection?.ServerName);
             var hasDatabase = !string.IsNullOrWhiteSpace(connection?.SelectedDatabaseName);
             var selectedObjectKind = connection?.SelectedObjectKind;
             var selectedObjectName = connection?.SelectedObjectName;
@@ -50,7 +51,7 @@
             var showColumnBrowser = isTableSelected || isOnColumnBrowserPage;
             var showProfiling = isTableSelected || isOnProfilingPage;
             var showScriptBrowser = isScriptObjectSelected || isOnScriptBrowserPage;
-            var showReports = hasDatabase || isOnReportsPage;
+            var showReports = hasServer && hasDatabase;
         }
         <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
             <div class="container">
