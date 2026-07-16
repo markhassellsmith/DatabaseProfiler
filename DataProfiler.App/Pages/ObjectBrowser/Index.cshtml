@@ -1,0 +1,158 @@
+@page
+@model DataProfiler.App.Pages.ObjectBrowser.IndexModel
+@{
+    ViewData["Title"] = "Object Browser";
+}
+
+<h1>Object Browser</h1>
+
+<div class="text-muted small mb-2 d-flex flex-wrap gap-3">
+    <span><strong>Server:</strong> @Model.ViewModel.ServerName</span>
+    <span><strong>Database:</strong> @Model.ViewModel.DatabaseName</span>
+    <span><strong>Table:</strong> All tables</span>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-info" role="alert">
+        @Model.StatusMessage
+    </div>
+}
+
+<div class="accordion schema-browser-accordion mb-4" id="schema-browser-accordion">
+    <div class="accordion-item schema-browser-panel" id="schema-tables-panel">
+        <h2 class="accordion-header" id="schema-tables-heading">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#schema-tables-collapse" aria-expanded="false" aria-controls="schema-tables-collapse">
+                Tables (@Model.ViewModel.TableCount)
+            </button>
+        </h2>
+        <div id="schema-tables-collapse" class="accordion-collapse collapse" aria-labelledby="schema-tables-heading" data-bs-parent="#schema-browser-accordion">
+            <div class="accordion-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th>Schema</th>
+                                <th>Table</th>
+                                <th>Data Profile</th>
+                                <th class="text-end">Rows</th>
+                                <th class="text-end">Columns</th>
+                                <th>PK</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var table in Model.ViewModel.Tables)
+                            {
+                                <tr>
+                                    <td>@table.SchemaName</td>
+                                    <td>
+                                        <a asp-page="/ColumnBrowser/Index"
+                                           asp-route-SelectedDatabaseName="@Model.ViewModel.DatabaseName"
+                                           asp-route-SelectedTableSchemaName="@table.SchemaName"
+                                           asp-route-SelectedTableName="@table.Name"
+                                           class="schema-browser-table-link">
+                                            @table.Name
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <a asp-page="/Profiling/Index"
+                                           asp-route-SelectedDatabaseName="@Model.ViewModel.DatabaseName"
+                                           asp-route-SelectedTableSchemaName="@table.SchemaName"
+                                           asp-route-SelectedTableName="@table.Name"
+                                           class="schema-browser-profile-link">
+                                            Profile Info
+                                        </a>
+                                    </td>
+                                    <td class="text-end">@table.RowCount</td>
+                                    <td class="text-end">@table.ColumnCount</td>
+                                    <td>@(table.HasPrimaryKey ? "Yes" : "No")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item schema-browser-panel" id="schema-views-panel">
+        <h2 class="accordion-header" id="schema-views-heading">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#schema-views-collapse" aria-expanded="false" aria-controls="schema-views-collapse">
+                Views (@Model.ViewModel.ViewCount)
+            </button>
+        </h2>
+        <div id="schema-views-collapse" class="accordion-collapse collapse" aria-labelledby="schema-views-heading" data-bs-parent="#schema-browser-accordion">
+            <div class="accordion-body">
+                <ul class="schema-browser-object-list mb-0">
+                    @foreach (var view in Model.ViewModel.Views)
+                    {
+                        <li class="schema-browser-object-name">
+                            <a asp-page="/ScriptBrowser/Index"
+                               asp-route-SelectedDatabaseName="@Model.ViewModel.DatabaseName"
+                               asp-route-SelectedObjectKind="View"
+                               asp-route-SelectedObjectSchemaName="@view.SchemaName"
+                               asp-route-SelectedObjectName="@view.Name"
+                               class="schema-browser-object-link">
+                                @view.DisplayName
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item schema-browser-panel" id="schema-functions-panel">
+        <h2 class="accordion-header" id="schema-functions-heading">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#schema-functions-collapse" aria-expanded="false" aria-controls="schema-functions-collapse">
+                Functions (@Model.ViewModel.FunctionCount)
+            </button>
+        </h2>
+        <div id="schema-functions-collapse" class="accordion-collapse collapse" aria-labelledby="schema-functions-heading" data-bs-parent="#schema-browser-accordion">
+            <div class="accordion-body">
+                <ul class="schema-browser-object-list mb-0">
+                    @foreach (var function in Model.ViewModel.Functions)
+                    {
+                        <li class="schema-browser-object-name">
+                            <a asp-page="/ScriptBrowser/Index"
+                               asp-route-SelectedDatabaseName="@Model.ViewModel.DatabaseName"
+                               asp-route-SelectedObjectKind="Function"
+                               asp-route-SelectedObjectSchemaName="@function.SchemaName"
+                               asp-route-SelectedObjectName="@function.Name"
+                               class="schema-browser-object-link">
+                                @function.DisplayName
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item schema-browser-panel" id="schema-stored-procedures-panel">
+        <h2 class="accordion-header" id="schema-stored-procedures-heading">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#schema-stored-procedures-collapse" aria-expanded="false" aria-controls="schema-stored-procedures-collapse">
+                Stored Procedures (@Model.ViewModel.StoredProcedureCount)
+            </button>
+        </h2>
+        <div id="schema-stored-procedures-collapse" class="accordion-collapse collapse" aria-labelledby="schema-stored-procedures-heading" data-bs-parent="#schema-browser-accordion">
+            <div class="accordion-body">
+                <ul class="schema-browser-object-list mb-0">
+                    @foreach (var storedProcedure in Model.ViewModel.StoredProcedures)
+                    {
+                        <li class="schema-browser-object-name">
+                            <a asp-page="/ScriptBrowser/Index"
+                               asp-route-SelectedDatabaseName="@Model.ViewModel.DatabaseName"
+                               asp-route-SelectedObjectKind="StoredProcedure"
+                               asp-route-SelectedObjectSchemaName="@storedProcedure.SchemaName"
+                               asp-route-SelectedObjectName="@storedProcedure.Name"
+                               class="schema-browser-object-link">
+                                @storedProcedure.DisplayName
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

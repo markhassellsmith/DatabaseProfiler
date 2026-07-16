@@ -1,4 +1,5 @@
 using DataProfiler.App.Models;
+using DataProfiler.App.Services.Connections;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -10,25 +11,45 @@ public class IndexModel : PageModel
     [BindProperty]
     public ConnectionInputModel Input { get; set; } = new();
 
-    public SelectList AuthenticationMethods { get; private set; } = default!;
+    [TempData]
+    public string? ConnectedServerName { get; set; }
 
-    public string StatusMessage { get; private set; } = "Ready to connect.";
+    [TempData]
+    public string? ConnectionStatus { get; set; }
+
+    public SelectList AuthenticationMethods { get; private set; } = default!;
 
     public void OnGet()
     {
         AuthenticationMethods = CreateAuthenticationMethods();
     }
 
-    public void OnPost()
+    public IActionResult OnPost()
     {
         AuthenticationMethods = CreateAuthenticationMethods();
+        ConnectedServerName = Input.ServerName;
+
+        HttpContext.Session.SetConnection(new ConnectionSessionModel
+        {
+            AuthenticationMethod = Input.AuthenticationMethod,
+            Password = Input.Password,
+            ServerName = Input.ServerName,
+            UserName = Input.UserName
+        });
+
         if (Input.AuthenticationMethod == AuthenticationMethod.WindowsTrustedPassThrough)
         {
-            StatusMessage = "Using Windows trusted pass-through. No SQL credentials are required if your Windows account already has access.";
-            return;
+            ConnectionStatus = "Using Windows trusted pass-through. No SQL credentials are required if your Windows account already has access.";
+            return RedirectToPage("/Databases/Index");
         }
 
-        StatusMessage = "Connection details captured for the current session.";
+        if (string.IsNullOrWhiteSpace(Input.UserName) || string.IsNullOrWhiteSpace(Input.Password))
+        {
+            return Page();
+        }
+
+        ConnectionStatus = "Connection details captured for the current session.";
+        return RedirectToPage("/Databases/Index");
     }
 
     private static SelectList CreateAuthenticationMethods()

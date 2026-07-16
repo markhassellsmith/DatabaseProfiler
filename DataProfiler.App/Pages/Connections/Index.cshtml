@@ -5,22 +5,20 @@
 }
 
 <h1>Connection</h1>
-<p class="text-muted">Enter the SQL Server connection details for the current session.</p>
-<div class="alert alert-info py-2" id="connectionModeNote" role="alert">
-    Windows trusted authentication pass-through is selected by default when the current Windows account already has SQL permissions.
-</div>
 
 <div class="row">
     <div class="col-md-8">
-        <form method="post" class="card card-body shadow-sm">
+        <form method="post" class="card card-body shadow-sm" id="connectionForm">
             <div class="mb-3">
                 <label asp-for="Input.ServerName" class="form-label"></label>
-                <input asp-for="Input.ServerName" class="form-control" />
+                <input asp-for="Input.ServerName" class="form-control" id="serverName" />
             </div>
             <div class="mb-3">
                 <label asp-for="Input.AuthenticationMethod" class="form-label"></label>
                 <select asp-for="Input.AuthenticationMethod" class="form-select" asp-items="Model.AuthenticationMethods" id="authenticationMethod"></select>
-                <div class="form-text">Use Windows trusted authentication pass-through when your current Windows account already has SQL permissions.</div>
+            </div>
+            <div class="form-text mb-3" id="connectionModeNote">
+                Windows trusted authentication pass-through is selected. No SQL credentials are required if the current Windows account already has SQL permissions.
             </div>
             <div class="mb-3" id="credentialFields">
                 <label asp-for="Input.UserName" class="form-label"></label>
@@ -33,8 +31,7 @@
                 <div class="form-text">Required only for SQL Server authentication.</div>
             </div>
             <div class="d-flex gap-2 align-items-center">
-                <button type="submit" class="btn btn-primary">Connect</button>
-                <span class="text-muted">@Model.StatusMessage</span>
+                <button type="submit" class="btn btn-primary" id="connectButton" disabled>Connect</button>
             </div>
         </form>
     </div>
@@ -43,13 +40,37 @@
 @section Scripts {
     <script>
         (() => {
+            const serverName = document.getElementById('serverName');
             const authMethod = document.getElementById('authenticationMethod');
+            const connectionForm = document.getElementById('connectionForm');
             const credentialFields = document.getElementById('credentialFields');
             const passwordField = document.getElementById('passwordField');
             const userName = document.getElementById('userName');
             const password = document.getElementById('password');
             const note = document.getElementById('connectionModeNote');
+            const connectButton = document.getElementById('connectButton');
             const windowsTrustedValue = 'WindowsTrustedPassThrough';
+            const connectionFields = connectionForm.querySelectorAll('input, select');
+
+            const updateConnectionState = () => {
+                if (!serverName || !connectButton) {
+                    return;
+                }
+
+                const useWindowsTrusted = authMethod && authMethod.value === windowsTrustedValue;
+                const hasServerName = serverName.value.trim().length > 0;
+                const hasUserName = userName ? userName.value.trim().length > 0 : false;
+                const hasPassword = password ? password.value.trim().length > 0 : false;
+                const isReady = useWindowsTrusted
+                    ? hasServerName
+                    : hasServerName && hasUserName && hasPassword;
+
+                connectButton.disabled = !isReady;
+            };
+
+            const scheduleConnectionStateUpdate = () => {
+                window.requestAnimationFrame(updateConnectionState);
+            };
 
             function toggleCredentialFields() {
                 const useWindowsTrusted = authMethod.value === windowsTrustedValue;
@@ -58,12 +79,28 @@
                 passwordField.classList.toggle('d-none', useWindowsTrusted);
                 userName.disabled = useWindowsTrusted;
                 password.disabled = useWindowsTrusted;
-                note.textContent = useWindowsTrusted
-                    ? 'Windows trusted authentication pass-through is selected. No SQL credentials are required if the current Windows account already has SQL permissions.'
-                    : 'SQL Server authentication is selected. Enter a user name and password.';
+                if (note) {
+                    note.textContent = useWindowsTrusted
+                        ? 'Windows trusted authentication pass-through is selected.'
+                        : 'SQL Server authentication is selected. Enter a SQL user name and password.';
+                }
             }
 
+            connectionFields.forEach((field) => {
+                field.addEventListener('blur', updateConnectionState);
+                field.addEventListener('change', updateConnectionState);
+                field.addEventListener('input', scheduleConnectionStateUpdate);
+            });
+
+            connectionForm.addEventListener('focusout', updateConnectionState);
+            connectionForm.addEventListener('input', scheduleConnectionStateUpdate);
+            connectionForm.addEventListener('change', updateConnectionState);
             authMethod.addEventListener('change', toggleCredentialFields);
+            authMethod.addEventListener('change', scheduleConnectionStateUpdate);
+            authMethod.addEventListener('input', scheduleConnectionStateUpdate);
+            updateConnectionState();
+            window.addEventListener('pageshow', updateConnectionState);
+            window.setTimeout(updateConnectionState, 0);
             toggleCredentialFields();
         })();
     </script>

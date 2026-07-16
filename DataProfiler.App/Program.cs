@@ -2,6 +2,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession(options =>
+{
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+});
+builder.Services.AddScoped<DataProfiler.App.Services.Discovery.SchemaDiscoveryService>();
+builder.Services.AddScoped<DataProfiler.App.Services.Profiling.TableProfilingService>();
 
 var app = builder.Build();
 
@@ -16,6 +24,8 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseRouting();
+
+app.UseSession();
 
 app.UseAuthorization();
 
