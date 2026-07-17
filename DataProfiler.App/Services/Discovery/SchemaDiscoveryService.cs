@@ -6,6 +6,26 @@ namespace DataProfiler.App.Services.Discovery;
 
 public sealed class SchemaDiscoveryService
 {
+    public async Task<IReadOnlyList<SchemaTableModel>> DiscoverTablesAsync(
+        ConnectionSessionModel connection,
+        string databaseName,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+
+        if (string.IsNullOrWhiteSpace(connection.ServerName))
+        {
+            throw new InvalidOperationException("A server name is required before schema discovery can run.");
+        }
+
+        if (string.IsNullOrWhiteSpace(databaseName))
+        {
+            throw new InvalidOperationException("A database name is required before schema discovery can run.");
+        }
+
+        return await LoadTablesAsync(connection, databaseName, cancellationToken);
+    }
+
     public async Task<SchemaBrowserViewModel> DiscoverObjectBrowserAsync(
         ConnectionSessionModel connection,
         string databaseName,
@@ -50,6 +70,18 @@ public sealed class SchemaDiscoveryService
         string? selectedTableName,
         CancellationToken cancellationToken)
     {
+        var tables = await DiscoverTablesAsync(connection, databaseName, cancellationToken);
+        return await DiscoverColumnBrowserAsync(connection, databaseName, tables, selectedTableSchemaName, selectedTableName, cancellationToken);
+    }
+
+    public async Task<SchemaBrowserViewModel> DiscoverColumnBrowserAsync(
+        ConnectionSessionModel connection,
+        string databaseName,
+        IReadOnlyList<SchemaTableModel> tables,
+        string? selectedTableSchemaName,
+        string? selectedTableName,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(connection);
 
         if (string.IsNullOrWhiteSpace(connection.ServerName))
@@ -62,14 +94,9 @@ public sealed class SchemaDiscoveryService
             throw new InvalidOperationException("A database name is required before schema discovery can run.");
         }
 
-        var tables = await LoadTablesAsync(connection, databaseName, cancellationToken);
-        var selectedTable = !string.IsNullOrWhiteSpace(selectedTableSchemaName)
-            ? tables.FirstOrDefault(table => string.Equals(table.SchemaName, selectedTableSchemaName, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(table.Name, selectedTableName, StringComparison.OrdinalIgnoreCase))
-            : null;
+        ArgumentNullException.ThrowIfNull(tables);
 
-        selectedTable ??= tables.FirstOrDefault(table => string.Equals(table.Name, selectedTableName, StringComparison.OrdinalIgnoreCase))
-            ?? tables.FirstOrDefault();
+        var selectedTable = ResolveSelectedTable(tables, selectedTableSchemaName, selectedTableName);
 
         var columns = selectedTable is null
             ? []
@@ -157,7 +184,7 @@ public sealed class SchemaDiscoveryService
         }
 
         var objectBrowser = await DiscoverObjectBrowserAsync(connection, databaseName, cancellationToken);
-        var columnBrowser = await DiscoverColumnBrowserAsync(connection, databaseName, null, selectedTableName, cancellationToken);
+        var columnBrowser = await DiscoverColumnBrowserAsync(connection, databaseName, objectBrowser.Tables, null, selectedTableName, cancellationToken);
 
         return new SchemaBrowserViewModel
         {
@@ -266,6 +293,35 @@ public sealed class SchemaDiscoveryService
         }
 
         return columns.OrderBy(column => column.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static SchemaTableModel? ResolveSelectedTable(
+        IReadOnlyList<SchemaTableModel> tables,
+        string? selectedTableSchemaName,
+        string? selectedTableName)
+    {
+        if (!string.IsNullOrWhiteSpace(selectedTableSchemaName) && !string.IsNullOrWhiteSpace(selectedTableName))
+        {
+            var exactMatch = tables.FirstOrDefault(table =>
+                string.Equals(table.SchemaName, selectedTableSchemaName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(table.Name, selectedTableName, StringComparison.OrdinalIgnoreCase));
+
+            if (exactMatch is not null)
+            {
+                return exactMatch;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedTableName))
+        {
+            var nameMatch = tables.FirstOrDefault(table => string.Equals(table.Name, selectedTableName, StringComparison.OrdinalIgnoreCase));
+            if (nameMatch is not null)
+            {
+                return nameMatch;
+            }
+        }
+
+        return tables.FirstOrDefault();
     }
 
     private static async Task<List<SchemaTableModel>> LoadTablesAsync(

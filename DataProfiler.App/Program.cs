@@ -1,3 +1,5 @@
+using DataProfiler.App.Services.Reporting;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -8,8 +10,16 @@ builder.Services.AddSession(options =>
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
 });
-builder.Services.AddScoped<DataProfiler.App.Services.Discovery.SchemaDiscoveryService>();
-builder.Services.AddScoped<DataProfiler.App.Services.Profiling.TableProfilingService>();
+builder.Services.AddSingleton<DataProfiler.App.Services.Discovery.SchemaDiscoveryService>();
+builder.Services.AddSingleton<DataProfiler.App.Services.Profiling.TableProfilingService>();
+builder.Services.AddSingleton<DataProfiler.App.Services.Reporting.TableReportService>();
+builder.Services.AddSingleton<DataProfiler.App.Services.Reporting.TableReportJobStore>();
+builder.Services.AddSingleton<ITableReportJobQueue, TableReportJobQueue>();
+builder.Services.AddHostedService<TableReportBackgroundService>();
+builder.Services.Configure<HostOptions>(options =>
+{
+    options.ShutdownTimeout = TimeSpan.FromMinutes(10);
+});
 
 var app = builder.Build();
 

@@ -1,31 +1,41 @@
 using DataProfiler.App.Models;
+using DataProfiler.App.Services.Connections;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace DataProfiler.App.Pages.Reports;
 
 public class IndexModel : PageModel
 {
-    public ExportViewModel ViewModel { get; private set; } = new();
+    public sealed record ReportChoiceViewModel(string Title, string Description, string Format, string ActionText, string? PagePath);
+
+    public IReadOnlyList<ReportChoiceViewModel> ReportChoices { get; private set; } = [];
+
+    public string? DatabaseName { get; private set; }
+
+    public string? ServerName { get; private set; }
 
     public void OnGet()
     {
-        ViewModel = new ExportViewModel
-        {
-            ExportFormats = new[]
-            {
-                "CSV",
+        var connection = HttpContext.Session.GetConnection();
+
+        ServerName = connection?.ServerName;
+        DatabaseName = connection?.SelectedDatabaseName;
+
+        ReportChoices =
+        [
+            new ReportChoiceViewModel(
+                "Excel Report on Tables",
+                "Combine table schema and profiling data into a detailed Excel report with one sheet per table.",
                 "Excel",
-                "JSON",
-                "Markdown",
-                "PDF"
-            },
-            ScriptObjectTypes = new[]
-            {
-                "Functions",
-                "Stored Procedures",
-                "Tables",
-                "Views"
-            }
-        };
+                "Open table report",
+                "/Reports/Tables"),
+            new ReportChoiceViewModel(
+                "Script Report",
+                "Generate plain text scripts for views, functions, and stored procedures.",
+                "Text",
+                "Coming soon",
+                null)
+        ];
     }
 }

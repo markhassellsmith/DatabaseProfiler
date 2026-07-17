@@ -29,6 +29,8 @@ public sealed class ConnectionSessionModel
 
     public string? SelectedColumnName { get; set; }
 
+    public string[] SelectedReportTableValues { get; set; } = Array.Empty<string>();
+
     public string? ServerName { get; set; }
 
     public string? UserName { get; set; }
@@ -62,6 +64,7 @@ public sealed class ConnectionSessionModel
 public static class ConnectionSessionState
 {
     private const string SessionKey = "DataProfiler.ConnectionSession";
+    private const string ActiveReportJobSessionKey = "DataProfiler.ActiveReportJobId";
 
     public static ConnectionSessionModel? GetConnection(this ISession session)
     {
@@ -81,6 +84,33 @@ public static class ConnectionSessionState
         session.SetString(SessionKey, JsonSerializer.Serialize(connection));
     }
 
+    public static string? GetActiveReportJobId(this ISession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        return session.GetString(ActiveReportJobSessionKey);
+    }
+
+    public static void SetActiveReportJobId(this ISession session, string? jobId)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        if (string.IsNullOrWhiteSpace(jobId))
+        {
+            session.Remove(ActiveReportJobSessionKey);
+            return;
+        }
+
+        session.SetString(ActiveReportJobSessionKey, jobId);
+    }
+
+    public static void ClearActiveReportJobId(this ISession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        session.Remove(ActiveReportJobSessionKey);
+    }
+
     public static void SetDatabaseSelection(this ISession session, string? selectedDatabaseName)
     {
         ArgumentNullException.ThrowIfNull(session);
@@ -91,6 +121,19 @@ public static class ConnectionSessionState
         connection.SelectedObjectSchemaName = null;
         connection.SelectedObjectName = null;
         connection.SelectedColumnName = null;
+        session.SetConnection(connection);
+    }
+
+    public static void SetReportTableSelection(this ISession session, IEnumerable<string> selectedTableValues)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(selectedTableValues);
+
+        var connection = session.GetConnection() ?? new ConnectionSessionModel();
+        connection.SelectedReportTableValues = selectedTableValues
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         session.SetConnection(connection);
     }
 

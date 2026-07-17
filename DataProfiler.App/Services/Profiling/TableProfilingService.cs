@@ -31,6 +31,47 @@ public sealed class TableProfilingService
         await sqlConnection.OpenAsync(cancellationToken);
 
         var tables = await LoadTablesAsync(sqlConnection, cancellationToken);
+        return await ProfileTableAsync(sqlConnection, connection.ServerName, databaseName, tables, selectedTableSchemaName, selectedTableName, cancellationToken);
+    }
+
+    public async Task<ProfilingViewModel> ProfileTableAsync(
+        ConnectionSessionModel connection,
+        string databaseName,
+        IReadOnlyList<SchemaTableModel> tables,
+        string? selectedTableSchemaName,
+        string? selectedTableName,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+
+        if (string.IsNullOrWhiteSpace(connection.ServerName))
+        {
+            throw new InvalidOperationException("A server name is required before profiling can run.");
+        }
+
+        if (string.IsNullOrWhiteSpace(databaseName))
+        {
+            throw new InvalidOperationException("A database name is required before profiling can run.");
+        }
+
+        ArgumentNullException.ThrowIfNull(tables);
+
+        var connectionString = connection.BuildConnectionString(databaseName);
+        await using var sqlConnection = new SqlConnection(connectionString);
+        await sqlConnection.OpenAsync(cancellationToken);
+
+        return await ProfileTableAsync(sqlConnection, connection.ServerName, databaseName, tables, selectedTableSchemaName, selectedTableName, cancellationToken);
+    }
+
+    private static async Task<ProfilingViewModel> ProfileTableAsync(
+        SqlConnection sqlConnection,
+        string serverName,
+        string databaseName,
+        IReadOnlyList<SchemaTableModel> tables,
+        string? selectedTableSchemaName,
+        string? selectedTableName,
+        CancellationToken cancellationToken)
+    {
         var selectedTable = ResolveSelectedTable(tables, selectedTableSchemaName, selectedTableName);
 
         if (selectedTable is null)
@@ -38,7 +79,7 @@ public sealed class TableProfilingService
             return new ProfilingViewModel
             {
                 DatabaseName = databaseName,
-                ServerName = connection.ServerName,
+                ServerName = serverName,
                 Tables = tables
             };
         }
@@ -56,7 +97,7 @@ public sealed class TableProfilingService
             Columns = columnProfiles,
             SelectedTableName = selectedTable.Name,
             SelectedTableSchemaName = selectedTable.SchemaName,
-            ServerName = connection.ServerName,
+            ServerName = serverName,
             RowCount = selectedTable.RowCount,
             Tables = tables
         };
@@ -370,7 +411,8 @@ public sealed class TableProfilingService
 
     private static bool IsMinMaxSupported(string sqlType)
     {
-        return IsProfileFriendlyType(sqlType);
+        return IsProfileFriendlyType(sqlType)
+            && !sqlType.Equals("bit", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsStandardDeviationSupported(string sqlType)
