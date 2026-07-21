@@ -31,6 +31,8 @@ public sealed class ConnectionSessionModel
 
     public string[] SelectedReportTableValues { get; set; } = Array.Empty<string>();
 
+    public bool IncludeTableProfileInfo { get; set; } = true;
+
     public string? ServerName { get; set; }
 
     public string? UserName { get; set; }
@@ -124,7 +126,7 @@ public static class ConnectionSessionState
         session.SetConnection(connection);
     }
 
-    public static void SetReportTableSelection(this ISession session, IEnumerable<string> selectedTableValues)
+    public static void SetReportTableSelection(this ISession session, IEnumerable<string> selectedTableValues, bool includeTableProfileInfo = true)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(selectedTableValues);
@@ -134,6 +136,7 @@ public static class ConnectionSessionState
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+        connection.IncludeTableProfileInfo = includeTableProfileInfo;
         session.SetConnection(connection);
     }
 

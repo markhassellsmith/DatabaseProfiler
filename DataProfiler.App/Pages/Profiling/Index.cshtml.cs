@@ -46,14 +46,63 @@ public class IndexModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
+        var redirect = GetPrerequisiteRedirect();
+        if (redirect is not null)
+        {
+            return redirect;
+        }
+
         await LoadPageModelAsync(cancellationToken);
         return Page();
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
+        var redirect = GetPrerequisiteRedirect();
+        if (redirect is not null)
+        {
+            return redirect;
+        }
+
         await LoadPageModelAsync(cancellationToken);
         return Page();
+    }
+
+    private IActionResult? GetPrerequisiteRedirect()
+    {
+        var connection = HttpContext.Session.GetConnection();
+        if (connection is null || string.IsNullOrWhiteSpace(connection.ServerName))
+        {
+            return RedirectToPage("/Connections/Index");
+        }
+
+        var databaseName = SelectedDatabaseName ?? connection.SelectedDatabaseName;
+        if (string.IsNullOrWhiteSpace(databaseName))
+        {
+            return RedirectToPage("/Databases/Index");
+        }
+
+        if (!HasSelectedTable(connection))
+        {
+            return RedirectToPage("/ObjectBrowser/Index", new { selectedDatabaseName = databaseName });
+        }
+
+        return null;
+    }
+
+    private bool HasSelectedTable(ConnectionSessionModel? connection)
+    {
+        if (!string.IsNullOrWhiteSpace(SelectedTableSelectionValue)
+            || !string.IsNullOrWhiteSpace(SelectedTableSchemaName)
+            || !string.IsNullOrWhiteSpace(SelectedTableName))
+        {
+            return true;
+        }
+
+        return connection is not null
+            && string.Equals(connection.SelectedObjectKind, "Table", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(connection.SelectedObjectSchemaName)
+            && !string.IsNullOrWhiteSpace(connection.SelectedObjectName);
     }
 
     private async Task LoadPageModelAsync(CancellationToken cancellationToken)
@@ -73,12 +122,17 @@ public class IndexModel : PageModel
         SortDescending ??= connection.ProfilingSortDescending;
 
         if (string.IsNullOrWhiteSpace(SelectedTableSelectionValue)
-            && string.Equals(connection.SelectedObjectKind, "Table", StringComparison.OrdinalIgnoreCase)
-            && !string.IsNullOrWhiteSpace(connection.SelectedObjectSchemaName)
-            && !string.IsNullOrWhiteSpace(connection.SelectedObjectName))
+            && string.IsNullOrWhiteSpace(SelectedTableSchemaName)
+            && string.IsNullOrWhiteSpace(SelectedTableName))
         {
-            SelectedTableSchemaName = connection.SelectedObjectSchemaName;
-            SelectedTableName = connection.SelectedObjectName;
+            ViewModel = new ProfilingViewModel
+            {
+                DatabaseName = SelectedDatabaseName,
+                ServerName = connection.ServerName
+            };
+            TableNames = new SelectList(Array.Empty<string>());
+            StatusMessage = "Select a table from Object Browser to load the profile.";
+            return;
         }
 
         ApplySelectedTableSelection();
@@ -102,6 +156,7 @@ public class IndexModel : PageModel
         SelectedTableSelectionValue = ViewModel.SelectedTableSelectionValue;
         SelectedTableSchemaName = ViewModel.SelectedTableSchemaName;
         SelectedTableName = ViewModel.SelectedTableName;
+        ViewModel.ProfileScope = discovery.ProfileScope;
         TableNames = new SelectList(ViewModel.Tables, nameof(SchemaTableModel.SelectionValue), nameof(SchemaTableModel.DisplayName), SelectedTableSelectionValue);
         HttpContext.Session.SetTableSelection(SelectedDatabaseName, SelectedTableSchemaName, SelectedTableName);
 

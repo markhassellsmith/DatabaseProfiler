@@ -83,5 +83,10 @@ public class IndexModel : PageModel
             DatabaseNames = new SelectList(Array.Empty<string>());
             StatusMessage = $"Could not load databases from {connection.ServerName}: {ex.Message}";
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            DatabaseNames = new SelectList(Array.Empty<string>());
+            StatusMessage = "Database loading was canceled.";
+        }
     }
 }

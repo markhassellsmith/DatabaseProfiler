@@ -32,6 +32,8 @@ public sealed class ProfilingViewModel
 
     public long RowCount { get; set; }
 
+    public string ProfileScope { get; set; } = string.Empty;
+
     public IReadOnlyList<SchemaTableModel> Tables { get; set; } = [];
 }
 

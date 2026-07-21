@@ -2,11 +2,19 @@ using System.Globalization;
 using DataProfiler.App.Models;
 using DataProfiler.App.Services.Connections;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Options;
 
 namespace DataProfiler.App.Services.Profiling;
 
 public sealed class TableProfilingService
 {
+    private readonly TableProfilingPolicyOptions _policyOptions;
+
+    public TableProfilingService(IOptions<TableProfilingPolicyOptions> policyOptions)
+    {
+        _policyOptions = policyOptions.Value;
+    }
+
     public async Task<ProfilingViewModel> ProfileTableAsync(
         ConnectionSessionModel connection,
         string databaseName,
@@ -31,7 +39,7 @@ public sealed class TableProfilingService
         await sqlConnection.OpenAsync(cancellationToken);
 
         var tables = await LoadTablesAsync(sqlConnection, cancellationToken);
-        return await ProfileTableAsync(sqlConnection, connection.ServerName, databaseName, tables, selectedTableSchemaName, selectedTableName, cancellationToken);
+        return await this.ProfileTableAsync(sqlConnection, connection.ServerName, databaseName, tables, selectedTableSchemaName, selectedTableName, cancellationToken);
     }
 
     public async Task<ProfilingViewModel> ProfileTableAsync(
@@ -60,10 +68,10 @@ public sealed class TableProfilingService
         await using var sqlConnection = new SqlConnection(connectionString);
         await sqlConnection.OpenAsync(cancellationToken);
 
-        return await ProfileTableAsync(sqlConnection, connection.ServerName, databaseName, tables, selectedTableSchemaName, selectedTableName, cancellationToken);
+        return await this.ProfileTableAsync(sqlConnection, connection.ServerName, databaseName, tables, selectedTableSchemaName, selectedTableName, cancellationToken);
     }
 
-    private static async Task<ProfilingViewModel> ProfileTableAsync(
+    private async Task<ProfilingViewModel> ProfileTableAsync(
         SqlConnection sqlConnection,
         string serverName,
         string databaseName,
@@ -85,11 +93,17 @@ public sealed class TableProfilingService
         }
 
         var columnMetadata = await LoadColumnMetadataAsync(sqlConnection, selectedTable.SchemaName, selectedTable.Name, cancellationToken);
-        var columnProfiles = new List<ColumnProfileModel>(columnMetadata.Count);
-        foreach (var column in columnMetadata)
-        {
-            columnProfiles.Add(await LoadColumnProfileAsync(sqlConnection, selectedTable.SchemaName, selectedTable.Name, column, selectedTable.RowCount, cancellationToken));
-        }
+        ApplyAdaptiveProfilingPolicy(
+            selectedTable.RowCount,
+            selectedTable.ColumnCount,
+            columnMetadata);
+        var columnProfiles = await LoadColumnProfilesAsync(
+            sqlConnection,
+            selectedTable.SchemaName,
+            selectedTable.Name,
+            columnMetadata,
+            selectedTable.RowCount,
+            cancellationToken);
 
         return new ProfilingViewModel
         {
@@ -237,11 +251,12 @@ public sealed class TableProfilingService
             columns.Add(new ColumnMetadataModel
             {
                 DataType = GetDataTypeDisplay(sqlType, maxLength, precision, scale),
-                IsAverageSupported = IsAverageSupported(sqlType),
-                IsCountDistinctSupported = IsCountDistinctSupported(sqlType),
-                IsFrequencySupported = IsFrequencySupported(sqlType),
-                IsMinMaxSupported = IsMinMaxSupported(sqlType),
-                IsStandardDeviationSupported = IsStandardDeviationSupported(sqlType),
+                IncludeAverage = IsAverageSupported(sqlType),
+                IncludeCountDistinct = IsCountDistinctSupported(sqlType),
+                IncludeFrequency = IsFrequencySupported(sqlType),
+                IncludeMinMax = IsMinMaxSupported(sqlType),
+                IncludeStandardDeviation = IsStandardDeviationSupported(sqlType),
+                MaxLength = maxLength,
                 Name = reader.GetString(columnNameOrdinal),
                 Ordinal = reader.GetInt32(ordinalOrdinal),
                 SqlType = sqlType
@@ -259,103 +274,217 @@ public sealed class TableProfilingService
         long rowCount,
         CancellationToken cancellationToken)
     {
-        var profile = new ColumnProfileModel
-        {
-            DataType = column.DataType,
-            Name = column.Name,
-            Ordinal = column.Ordinal
-        };
-
-        var tableReference = $"{QuoteIdentifier(schemaName)}.{QuoteIdentifier(tableName)}";
-        var columnReference = QuoteIdentifier(column.Name);
-
-        await using (var command = sqlConnection.CreateCommand())
-        {
-            command.CommandText = BuildAggregateSql(tableReference, columnReference, column);
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            if (await reader.ReadAsync(cancellationToken))
+        var profiles = await LoadColumnProfilesAsync(sqlConnection, schemaName, tableName, [column], rowCount, cancellationToken);
+        return profiles.Count > 0
+            ? profiles[0]
+            : new ColumnProfileModel
             {
-                var nullCount = reader.IsDBNull(reader.GetOrdinal("NullCount")) ? 0L : reader.GetInt64(reader.GetOrdinal("NullCount"));
-                profile.NullCount = nullCount.ToString(CultureInfo.InvariantCulture);
-                profile.NullPercent = rowCount == 0 ? string.Empty : $"{(nullCount * 100m / rowCount):0.0}%";
-
-                if (column.IsCountDistinctSupported)
-                {
-                    profile.CountDistinct = reader.IsDBNull(reader.GetOrdinal("CountDistinct"))
-                        ? string.Empty
-                        : reader.GetInt32(reader.GetOrdinal("CountDistinct")).ToString(CultureInfo.InvariantCulture);
-                }
-
-                if (column.IsMinMaxSupported)
-                {
-                    profile.MinValue = FormatValue(reader, "MinValue");
-                    profile.MaxValue = FormatValue(reader, "MaxValue");
-                }
-
-                if (column.IsAverageSupported)
-                {
-                    profile.AverageValue = FormatValue(reader, "AverageValue");
-                }
-
-                if (column.IsStandardDeviationSupported)
-                {
-                    profile.StandardDeviation = FormatValue(reader, "StandardDeviation");
-                }
-            }
-        }
-
-        if (column.IsFrequencySupported && rowCount > 0)
-        {
-            await using var command = sqlConnection.CreateCommand();
-            command.CommandText = $"""
-                SELECT TOP (1)
-                    CONVERT(nvarchar(4000), {columnReference}) AS MostFrequentValue,
-                    COUNT_BIG(*) AS MostFrequentCount
-                FROM {tableReference}
-                WHERE {columnReference} IS NOT NULL
-                GROUP BY {columnReference}
-                ORDER BY COUNT_BIG(*) DESC, CONVERT(nvarchar(4000), {columnReference});
-                """;
-
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            if (await reader.ReadAsync(cancellationToken))
-            {
-                profile.MostFrequentValue = reader.IsDBNull(reader.GetOrdinal("MostFrequentValue"))
-                    ? string.Empty
-                    : reader.GetString(reader.GetOrdinal("MostFrequentValue"));
-                profile.MostFrequentCount = reader.IsDBNull(reader.GetOrdinal("MostFrequentCount"))
-                    ? string.Empty
-                    : reader.GetInt64(reader.GetOrdinal("MostFrequentCount")).ToString(CultureInfo.InvariantCulture);
-            }
-        }
-
-        return profile;
+                DataType = column.DataType,
+                Name = column.Name,
+                Ordinal = column.Ordinal
+            };
     }
 
-    private static string BuildAggregateSql(string tableReference, string columnReference, ColumnMetadataModel column)
+    private static async Task<List<ColumnProfileModel>> LoadColumnProfilesAsync(
+        SqlConnection sqlConnection,
+        string schemaName,
+        string tableName,
+        IReadOnlyList<ColumnMetadataModel> columns,
+        long rowCount,
+        CancellationToken cancellationToken)
     {
-        var countDistinctSql = column.IsCountDistinctSupported
-            ? $"COALESCE(COUNT(DISTINCT {columnReference}), 0)"
-            : "NULL";
+        var profiles = columns
+            .Select(column => new ColumnProfileModel
+            {
+                DataType = column.DataType,
+                Name = column.Name,
+                Ordinal = column.Ordinal
+            })
+            .OrderBy(profile => profile.Ordinal)
+            .ToList();
 
-        var minSql = column.IsMinMaxSupported ? $"MIN({columnReference})" : "NULL";
-        var maxSql = column.IsMinMaxSupported ? $"MAX({columnReference})" : "NULL";
-        var averageSql = column.IsAverageSupported ? $"AVG(CAST({columnReference} AS decimal(38, 10)))" : "NULL";
-        var standardDeviationSql = column.IsStandardDeviationSupported ? $"STDEV(CAST({columnReference} AS float))" : "NULL";
+        if (profiles.Count == 0)
+        {
+            return profiles;
+        }
+
+        var tableReference = $"{QuoteIdentifier(schemaName)}.{QuoteIdentifier(tableName)}";
+        var aggregateSql = BuildAggregateSql(tableReference, columns);
+        await using var aggregateCommand = sqlConnection.CreateCommand();
+        aggregateCommand.CommandText = aggregateSql;
+        aggregateCommand.CommandTimeout = 300; // 5 minutes for complex aggregate queries on large tables
+
+        await using (var reader = await aggregateCommand.ExecuteReaderAsync(cancellationToken))
+        {
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                foreach (var column in columns)
+                {
+                    var profile = profiles.First(candidate => candidate.Ordinal == column.Ordinal);
+                    ReadAggregateProfile(reader, profile, column, rowCount);
+                }
+            }
+        }
+
+        var frequencyProfiles = await LoadColumnFrequencyProfilesAsync(sqlConnection, schemaName, tableName, columns, cancellationToken);
+        foreach (var profile in profiles)
+        {
+            if (frequencyProfiles.TryGetValue(profile.Ordinal, out var frequencyProfile))
+            {
+                profile.MostFrequentValue = frequencyProfile.MostFrequentValue;
+                profile.MostFrequentCount = frequencyProfile.MostFrequentCount;
+            }
+        }
+
+        return profiles;
+    }
+
+    private static async Task<Dictionary<int, (string MostFrequentValue, string MostFrequentCount)>> LoadColumnFrequencyProfilesAsync(
+        SqlConnection sqlConnection,
+        string schemaName,
+        string tableName,
+        IReadOnlyList<ColumnMetadataModel> columns,
+        CancellationToken cancellationToken)
+    {
+        var supportedColumns = columns.Where(column => column.IncludeFrequency).ToArray();
+        if (supportedColumns.Length == 0)
+        {
+            return new Dictionary<int, (string MostFrequentValue, string MostFrequentCount)>();
+        }
+
+        var tableReference = $"{QuoteIdentifier(schemaName)}.{QuoteIdentifier(tableName)}";
+        await using var command = sqlConnection.CreateCommand();
+        command.CommandText = BuildFrequencySql(tableReference, supportedColumns);
+        command.CommandTimeout = 300; // 5 minutes for frequency analysis with CTEs and window functions
+
+        var results = new Dictionary<int, (string MostFrequentValue, string MostFrequentCount)>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var ordinalOrdinal = reader.GetOrdinal("Ordinal");
+        var valueOrdinal = reader.GetOrdinal("MostFrequentValue");
+        var countOrdinal = reader.GetOrdinal("MostFrequentCount");
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var ordinal = reader.GetInt32(ordinalOrdinal);
+            var value = reader.IsDBNull(valueOrdinal) ? string.Empty : reader.GetString(valueOrdinal);
+            var count = reader.IsDBNull(countOrdinal) ? string.Empty : reader.GetInt64(countOrdinal).ToString(CultureInfo.InvariantCulture);
+            results[ordinal] = (value, count);
+        }
+
+        return results;
+    }
+
+    private static void ReadAggregateProfile(SqlDataReader reader, ColumnProfileModel profile, ColumnMetadataModel column, long rowCount)
+    {
+        var nullCount = ReadLong(reader, GetMetricAlias(column.Ordinal, "NullCount"));
+        profile.NullCount = nullCount.ToString(CultureInfo.InvariantCulture);
+        profile.NullPercent = rowCount == 0 ? string.Empty : $"{(nullCount * 100m / rowCount):0.0}%";
+
+        if (column.IncludeCountDistinct)
+        {
+            profile.CountDistinct = ReadNullableInt(reader, GetMetricAlias(column.Ordinal, "CountDistinct"))?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+        }
+
+        if (column.IncludeMinMax)
+        {
+            profile.MinValue = ReadFormattedValue(reader, GetMetricAlias(column.Ordinal, "MinValue"));
+            profile.MaxValue = ReadFormattedValue(reader, GetMetricAlias(column.Ordinal, "MaxValue"));
+        }
+
+        if (column.IncludeAverage)
+        {
+            profile.AverageValue = ReadFormattedValue(reader, GetMetricAlias(column.Ordinal, "AverageValue"));
+        }
+
+        if (column.IncludeStandardDeviation)
+        {
+            profile.StandardDeviation = ReadFormattedValue(reader, GetMetricAlias(column.Ordinal, "StandardDeviation"));
+        }
+    }
+
+    private static string BuildAggregateSql(string tableReference, IReadOnlyList<ColumnMetadataModel> columns)
+    {
+        var selectExpressions = new List<string>(columns.Count * 6);
+
+        foreach (var column in columns)
+        {
+            var columnReference = QuoteIdentifier(column.Name);
+            var nullCountAlias = GetMetricAlias(column.Ordinal, "NullCount");
+            var countDistinctAlias = GetMetricAlias(column.Ordinal, "CountDistinct");
+            var minAlias = GetMetricAlias(column.Ordinal, "MinValue");
+            var averageAlias = GetMetricAlias(column.Ordinal, "AverageValue");
+            var maxAlias = GetMetricAlias(column.Ordinal, "MaxValue");
+            var standardDeviationAlias = GetMetricAlias(column.Ordinal, "StandardDeviation");
+
+            selectExpressions.Add($"COALESCE(SUM(CASE WHEN {columnReference} IS NULL THEN CAST(1 AS bigint) ELSE CAST(0 AS bigint) END), 0) AS {QuoteIdentifier(nullCountAlias)}");
+            selectExpressions.Add(column.IncludeCountDistinct
+                ? $"COUNT(DISTINCT {columnReference}) AS {QuoteIdentifier(countDistinctAlias)}"
+                : $"NULL AS {QuoteIdentifier(countDistinctAlias)}");
+            selectExpressions.Add(column.IncludeMinMax
+                ? $"MIN({columnReference}) AS {QuoteIdentifier(minAlias)}"
+                : $"NULL AS {QuoteIdentifier(minAlias)}");
+            selectExpressions.Add(column.IncludeAverage
+                ? $"AVG(CAST({columnReference} AS decimal(38, 10))) AS {QuoteIdentifier(averageAlias)}"
+                : $"NULL AS {QuoteIdentifier(averageAlias)}");
+            selectExpressions.Add(column.IncludeMinMax
+                ? $"MAX({columnReference}) AS {QuoteIdentifier(maxAlias)}"
+                : $"NULL AS {QuoteIdentifier(maxAlias)}");
+            selectExpressions.Add(column.IncludeStandardDeviation
+                ? $"STDEV(CAST({columnReference} AS float)) AS {QuoteIdentifier(standardDeviationAlias)}"
+                : $"NULL AS {QuoteIdentifier(standardDeviationAlias)}");
+        }
 
         return $"""
             SELECT
-                COALESCE(SUM(CASE WHEN {columnReference} IS NULL THEN CAST(1 AS bigint) ELSE CAST(0 AS bigint) END), 0) AS NullCount,
-                {countDistinctSql} AS CountDistinct,
-                {minSql} AS MinValue,
-                {averageSql} AS AverageValue,
-                {maxSql} AS MaxValue,
-                {standardDeviationSql} AS StandardDeviation
+                {string.Join(",\n                ", selectExpressions)}
             FROM {tableReference};
             """;
     }
 
-    private static string FormatValue(SqlDataReader reader, string columnName)
+    private static string BuildFrequencySql(string tableReference, IReadOnlyList<ColumnMetadataModel> columns)
+    {
+        var valuesRows = columns
+            .Where(column => column.IncludeFrequency)
+            .Select(column => $"({column.Ordinal}, {ToSqlStringLiteral(column.Name)}, CONVERT(nvarchar(4000), {QuoteIdentifier(column.Name)}))")
+            .ToArray();
+
+        return $"""
+            ;WITH ColumnValues AS (
+                SELECT v.Ordinal, v.ColumnName, v.ValueText
+                FROM {tableReference}
+                CROSS APPLY (VALUES
+                    {string.Join(",\n                    ", valuesRows)}
+                ) v(Ordinal, ColumnName, ValueText)
+                WHERE v.ValueText IS NOT NULL
+            ), GroupedValues AS (
+                SELECT Ordinal, ColumnName, ValueText, COUNT_BIG(*) AS MostFrequentCount
+                FROM ColumnValues
+                GROUP BY Ordinal, ColumnName, ValueText
+            ), RankedValues AS (
+                SELECT Ordinal, ColumnName, ValueText, MostFrequentCount,
+                       ROW_NUMBER() OVER (PARTITION BY Ordinal ORDER BY MostFrequentCount DESC, ValueText) AS rn
+                FROM GroupedValues
+            )
+            SELECT Ordinal, ColumnName, ValueText AS MostFrequentValue, MostFrequentCount
+            FROM RankedValues
+            WHERE rn = 1
+            ORDER BY Ordinal;
+            """;
+    }
+
+    private static long ReadLong(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+        return reader.IsDBNull(ordinal) ? 0L : reader.GetInt64(ordinal);
+    }
+
+    private static int? ReadNullableInt(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+        return reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);
+    }
+
+    private static string ReadFormattedValue(SqlDataReader reader, string columnName)
     {
         var ordinal = reader.GetOrdinal(columnName);
         if (reader.IsDBNull(ordinal))
@@ -375,6 +504,228 @@ public sealed class TableProfilingService
             IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty,
             _ => value.ToString() ?? string.Empty
         };
+    }
+
+    private static string FormatValue(SqlDataReader reader, string columnName)
+    {
+        return ReadFormattedValue(reader, columnName);
+    }
+
+    private static string GetMetricAlias(int ordinal, string metricName)
+    {
+        return $"c_{ordinal}_{metricName}";
+    }
+
+    private static string ToSqlStringLiteral(string value)
+    {
+        return $"N'{value.Replace("'", "''")}'";
+    }
+
+    private void ApplyAdaptiveProfilingPolicy(long rowCount, int columnCount, IList<ColumnMetadataModel> columns)
+    {
+        var profileScope = DetermineProfileScope(rowCount, columnCount, _policyOptions);
+
+        foreach (var column in columns)
+        {
+            column.IncludeAverage = column.IncludeAverage && profileScope != ProfileScope.Massive;
+            column.IncludeStandardDeviation = column.IncludeStandardDeviation && profileScope != ProfileScope.Massive;
+        }
+
+        if (profileScope is ProfileScope.Lookup or ProfileScope.Detail)
+        {
+            return;
+        }
+
+        var countDistinctCap = profileScope == ProfileScope.Large
+            ? _policyOptions.LargeTableMaxCountDistinctColumns
+            : _policyOptions.MassiveTableMaxCountDistinctColumns;
+
+        var frequencyCap = profileScope == ProfileScope.Large
+            ? _policyOptions.LargeTableMaxFrequencyColumns
+            : _policyOptions.MassiveTableMaxFrequencyColumns;
+
+        var countDistinctCandidates = columns
+            .Where(column => column.IncludeCountDistinct)
+            .OrderByDescending(GetCountDistinctPriority)
+            .ThenBy(column => column.Ordinal)
+            .Take(countDistinctCap)
+            .Select(column => column.Ordinal)
+            .ToHashSet();
+
+        var frequencyCandidates = columns
+            .Where(column => column.IncludeFrequency)
+            .OrderByDescending(GetFrequencyPriority)
+            .ThenBy(column => column.Ordinal)
+            .Take(frequencyCap)
+            .Select(column => column.Ordinal)
+            .ToHashSet();
+
+        foreach (var column in columns)
+        {
+            if (!countDistinctCandidates.Contains(column.Ordinal))
+            {
+                column.IncludeCountDistinct = false;
+            }
+
+            if (!frequencyCandidates.Contains(column.Ordinal))
+            {
+                column.IncludeFrequency = false;
+            }
+
+            if (profileScope == ProfileScope.Massive)
+            {
+                column.IncludeAverage = column.IncludeAverage && IsNumericType(column.SqlType);
+                column.IncludeStandardDeviation = column.IncludeStandardDeviation && IsNumericType(column.SqlType);
+            }
+        }
+    }
+
+    private static ProfileScope DetermineProfileScope(long rowCount, int columnCount, TableProfilingPolicyOptions settings)
+    {
+        if (rowCount <= settings.LookupTableMaxRowCount && columnCount <= settings.LookupTableMaxColumnCount)
+        {
+            return ProfileScope.Lookup;
+        }
+
+        if (rowCount <= settings.DetailTableMaxRowCount && columnCount <= settings.DetailTableMaxColumnCount)
+        {
+            return ProfileScope.Detail;
+        }
+
+        if (rowCount <= settings.LargeTableMaxRowCount && columnCount <= settings.LargeTableMaxColumnCount)
+        {
+            return ProfileScope.Large;
+        }
+
+        return ProfileScope.Massive;
+    }
+
+    private static int GetCountDistinctPriority(ColumnMetadataModel column)
+    {
+        if (IsNumericType(column.SqlType))
+        {
+            return 100;
+        }
+
+        if (IsTemporalType(column.SqlType))
+        {
+            return 95;
+        }
+
+        if (IsUniqueIdentifierType(column.SqlType))
+        {
+            return 90;
+        }
+
+        if (IsBitType(column.SqlType))
+        {
+            return 85;
+        }
+
+        if (IsShortTextColumn(column))
+        {
+            return 80 - Math.Min(20, GetEffectiveTextLength(column) / 10);
+        }
+
+        if (IsStringType(column.SqlType))
+        {
+            return 30;
+        }
+
+        return 10;
+    }
+
+    private static int GetFrequencyPriority(ColumnMetadataModel column)
+    {
+        if (IsShortTextColumn(column))
+        {
+            return 100 - Math.Min(20, GetEffectiveTextLength(column) / 10);
+        }
+
+        if (IsBitType(column.SqlType))
+        {
+            return 95;
+        }
+
+        if (IsTemporalType(column.SqlType))
+        {
+            return 80;
+        }
+
+        if (IsUniqueIdentifierType(column.SqlType))
+        {
+            return 75;
+        }
+
+        if (IsNumericType(column.SqlType))
+        {
+            return 60;
+        }
+
+        return 10;
+    }
+
+    private static bool IsShortTextColumn(ColumnMetadataModel column)
+    {
+        if (!IsStringType(column.SqlType))
+        {
+            return false;
+        }
+
+        var length = GetEffectiveTextLength(column);
+        return length is > 0 and <= 50;
+    }
+
+    private static int GetEffectiveTextLength(ColumnMetadataModel column)
+    {
+        if (column.MaxLength < 0)
+        {
+            return int.MaxValue;
+        }
+
+        return column.SqlType.Trim().ToLowerInvariant() switch
+        {
+            "nchar" or "nvarchar" => column.MaxLength / 2,
+            _ => column.MaxLength
+        };
+    }
+
+    private static bool IsStringType(string sqlType)
+    {
+        return sqlType.Equals("char", StringComparison.OrdinalIgnoreCase)
+            || sqlType.Equals("varchar", StringComparison.OrdinalIgnoreCase)
+            || sqlType.Equals("nchar", StringComparison.OrdinalIgnoreCase)
+            || sqlType.Equals("nvarchar", StringComparison.OrdinalIgnoreCase)
+            || sqlType.Equals("text", StringComparison.OrdinalIgnoreCase)
+            || sqlType.Equals("ntext", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsTemporalType(string sqlType)
+    {
+        return sqlType.Equals("date", StringComparison.OrdinalIgnoreCase)
+            || sqlType.Equals("datetime", StringComparison.OrdinalIgnoreCase)
+            || sqlType.Equals("datetime2", StringComparison.OrdinalIgnoreCase)
+            || sqlType.Equals("smalldatetime", StringComparison.OrdinalIgnoreCase)
+            || sqlType.Equals("datetimeoffset", StringComparison.OrdinalIgnoreCase)
+            || sqlType.Equals("time", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsUniqueIdentifierType(string sqlType)
+    {
+        return sqlType.Equals("uniqueidentifier", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsBitType(string sqlType)
+    {
+        return sqlType.Equals("bit", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private enum ProfileScope
+    {
+        Lookup,
+        Detail,
+        Large,
+        Massive
     }
 
     private static string GetDataTypeDisplay(string sqlType, short maxLength, byte precision, byte scale)
@@ -462,20 +813,23 @@ public sealed class TableProfilingService
     {
         public string DataType { get; init; } = string.Empty;
 
-        public bool IsAverageSupported { get; init; }
+        public bool IncludeAverage { get; set; }
 
-        public bool IsCountDistinctSupported { get; init; }
+        public bool IncludeCountDistinct { get; set; }
 
-        public bool IsFrequencySupported { get; init; }
+        public bool IncludeFrequency { get; set; }
 
-        public bool IsMinMaxSupported { get; init; }
+        public bool IncludeMinMax { get; set; }
 
-        public bool IsStandardDeviationSupported { get; init; }
+        public bool IncludeStandardDeviation { get; set; }
 
         public string Name { get; init; } = string.Empty;
+
+        public short MaxLength { get; init; }
 
         public int Ordinal { get; init; }
 
         public string SqlType { get; init; } = string.Empty;
     }
+
 }

@@ -4,7 +4,25 @@ public sealed class TableReportModel
 {
     public string? DatabaseName { get; init; }
 
+    public string EmptyTablesText { get; init; } = string.Empty;
+
+    public bool IncludeProfileInfo { get; init; }
+
+    public bool IncludeTableDetailSheets { get; init; } = true;
+
     public DateTimeOffset GeneratedOnUtc { get; init; }
+
+    public string LargestColumnTableName { get; init; } = string.Empty;
+
+    public int LargestColumnTableColumnCount { get; init; }
+
+    public string LargestRowTableName { get; init; } = string.Empty;
+
+    public long LargestRowTableRowCount { get; init; }
+
+    public string SmallestColumnTableName { get; init; } = string.Empty;
+
+    public int SmallestColumnTableColumnCount { get; init; }
 
     public string? ServerName { get; init; }
 
@@ -21,7 +39,11 @@ public sealed class TableReportTableModel
 
     public bool HasPrimaryKey { get; init; }
 
+    public bool IncludeProfileInfo { get; init; }
+
     public long RowCount { get; init; }
+
+    public string ProfileScope { get; init; } = string.Empty;
 
     public string SchemaName { get; init; } = string.Empty;
 

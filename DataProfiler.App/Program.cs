@@ -1,6 +1,14 @@
 using DataProfiler.App.Services.Reporting;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Data Protection with persistent keys
+var keysDirectory = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "DataProtectionKeys");
+Directory.CreateDirectory(keysDirectory);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(keysDirectory))
+    .SetApplicationName("DataProfiler.App");
 
 // Add services to the container.
 builder.Services.AddRazorPages();
@@ -11,11 +19,13 @@ builder.Services.AddSession(options =>
     options.Cookie.IsEssential = true;
 });
 builder.Services.AddSingleton<DataProfiler.App.Services.Discovery.SchemaDiscoveryService>();
+builder.Services.Configure<DataProfiler.App.Services.Profiling.TableProfilingPolicyOptions>(builder.Configuration.GetSection("TableReports:Profiling"));
 builder.Services.AddSingleton<DataProfiler.App.Services.Profiling.TableProfilingService>();
 builder.Services.AddSingleton<DataProfiler.App.Services.Reporting.TableReportService>();
 builder.Services.AddSingleton<DataProfiler.App.Services.Reporting.TableReportJobStore>();
 builder.Services.AddSingleton<ITableReportJobQueue, TableReportJobQueue>();
 builder.Services.AddHostedService<TableReportBackgroundService>();
+builder.Services.Configure<TableReportJobStoreOptions>(builder.Configuration.GetSection("TableReports:Retention"));
 builder.Services.Configure<HostOptions>(options =>
 {
     options.ShutdownTimeout = TimeSpan.FromMinutes(10);

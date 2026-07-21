@@ -13,6 +13,9 @@ For a server deployment, the main objective is to avoid the host ending the work
 - Avoid relying on request lifetime for report completion.
 - Keep the report queue and worker running inside the app process unless a separate worker service is introduced later.
 
+## IIS / Server Hardening Reference
+The settings below are the IIS/server deployment-hardening items that should be reviewed before the app is placed into production. They are the practical controls that reduce report interruption risk.
+
 ## IIS Settings to Review
 If hosting under IIS, review these settings for the application pool and site:
 

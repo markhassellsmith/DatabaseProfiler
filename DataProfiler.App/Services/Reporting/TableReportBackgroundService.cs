@@ -22,6 +22,11 @@ public sealed class TableReportBackgroundService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        foreach (var pendingRequest in _jobStore.GetPendingRequests())
+        {
+            await _jobQueue.QueueAsync(pendingRequest, stoppingToken);
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             TableReportJobRequest request;
@@ -61,6 +66,8 @@ public sealed class TableReportBackgroundService : BackgroundService
                 request.SelectedValues,
                 request.JobId,
                 progress,
+                request.IncludeTableProfileInfo,
+                request.IncludeTableDetailSheets,
                 cancellationToken);
 
             _jobStore.Complete(request.JobId, report);

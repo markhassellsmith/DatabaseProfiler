@@ -25,6 +25,12 @@ public class IndexModel : PageModel
         ReportChoices =
         [
             new ReportChoiceViewModel(
+                "Excel Report on the Selected Database",
+                "Generate a Summary-only Excel report for the selected database as a whole.",
+                "Excel",
+                "Open database report",
+                "/Reports/Database"),
+            new ReportChoiceViewModel(
                 "Excel Report on Tables",
                 "Combine table schema and profiling data into a detailed Excel report with one sheet per table.",
                 "Excel",

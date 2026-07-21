@@ -28,119 +28,142 @@
 
 <div class="row mb-4">
     <div class="col-md-6">
-        <form method="post" class="card card-body shadow-sm">
-            <div class="mb-3">
-                <label asp-for="SelectedTableSelectionValue" class="form-label">Table</label>
-                <select asp-for="SelectedTableSelectionValue" class="form-select" asp-items="Model.TableNames"></select>
+        @if (string.IsNullOrWhiteSpace(Model.ViewModel.SelectedTableDisplayName))
+        {
+            <div class="card card-body shadow-sm">
+                <div class="text-muted">Select a table from Object Browser to load profile data.</div>
+                <div class="mt-3">
+                    <a asp-page="/ObjectBrowser/Index"
+                       asp-route-SelectedDatabaseName="@Model.SelectedDatabaseName"
+                       class="btn btn-primary btn-sm">
+                        Go to Object Browser
+                    </a>
+                </div>
             </div>
-            <input type="hidden" asp-for="SelectedDatabaseName" />
-            <input type="hidden" asp-for="SelectedTableSchemaName" />
-            <input type="hidden" asp-for="SelectedTableName" />
-            <input type="hidden" asp-for="SortColumn" />
-            <input type="hidden" asp-for="SortDescending" />
-            <button type="submit" class="btn btn-primary">Refresh Profile</button>
-        </form>
+        }
+        else
+        {
+            <form method="post" class="card card-body shadow-sm">
+                <div class="mb-3">
+                    <label asp-for="SelectedTableSelectionValue" class="form-label">Table</label>
+                    <select asp-for="SelectedTableSelectionValue" class="form-select" asp-items="Model.TableNames"></select>
+                </div>
+                <input type="hidden" asp-for="SelectedDatabaseName" />
+                <input type="hidden" asp-for="SelectedTableSchemaName" />
+                <input type="hidden" asp-for="SelectedTableName" />
+                <input type="hidden" asp-for="SortColumn" />
+                <input type="hidden" asp-for="SortDescending" />
+                <button type="submit" class="btn btn-primary">Refresh Profile</button>
+            </form>
+        }
     </div>
 </div>
 
-<div class="row row-cols-1 row-cols-md-4 g-3 mb-4">
-    <div class="col">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <div class="text-muted small">Columns Profiled</div>
-                <div class="fs-4">@Model.ViewModel.ColumnCount</div>
+@if (!string.IsNullOrWhiteSpace(Model.ViewModel.SelectedTableDisplayName))
+{
+    <div class="row row-cols-1 row-cols-md-4 g-3 mb-4">
+        <div class="col">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Columns Profiled</div>
+                    <div class="fs-4">@Model.ViewModel.ColumnCount</div>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Distinct Stats</div>
+                    <div class="fs-4">@Model.ViewModel.CountDistinctColumnCount</div>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Numeric Stats</div>
+                    <div class="fs-4">@Model.ViewModel.NumericStatColumnCount</div>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Row Count</div>
+                    <div class="fs-4">@Model.ViewModel.RowCount</div>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <div class="text-muted small">Distinct Stats</div>
-                <div class="fs-4">@Model.ViewModel.CountDistinctColumnCount</div>
-            </div>
-        </div>
-    </div>
-    <div class="col">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <div class="text-muted small">Numeric Stats</div>
-                <div class="fs-4">@Model.ViewModel.NumericStatColumnCount</div>
-            </div>
-        </div>
-    </div>
-    <div class="col">
-        <div class="card h-100 shadow-sm">
-            <div class="card-body">
-                <div class="text-muted small">Row Count</div>
-                <div class="fs-4">@Model.ViewModel.RowCount</div>
-            </div>
-        </div>
-    </div>
-</div>
 
-<div class="card shadow-sm">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Column Profiles for @Model.ViewModel.SelectedTableDisplayName</span>
-        <span class="text-muted small">CountDistinct, null counts, min/max, averages, standard deviation, and most frequent values</span>
+    <div class="alert alert-secondary py-2 small" role="status">
+        <strong>Profile scope:</strong> @(string.IsNullOrWhiteSpace(Model.ViewModel.ProfileScope) ? "Unknown" : Model.ViewModel.ProfileScope)
     </div>
-    <div class="profiling-table-scrollbar" aria-hidden="true">
-        <div class="profiling-table-scrollbar-spacer"></div>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-sm table-hover mb-0 align-middle profiling-results-grid">
-            <thead>
-                <tr>
-                    <th>
-                        <a asp-page="/Profiling/Index"
-                           asp-route-SelectedDatabaseName="@Model.SelectedDatabaseName"
-                           asp-route-SelectedTableSelectionValue="@Model.SelectedTableSelectionValue"
-                           asp-route-SortColumn="Ordinal"
-                           asp-route-SortDescending="@Model.GetNextSortDescending("Ordinal")"
-                           class="schema-browser-sort-link">
-                            Ordinal @Model.GetSortIndicator("Ordinal")
-                        </a>
-                    </th>
-                    <th>
-                        <a asp-page="/Profiling/Index"
-                           asp-route-SelectedDatabaseName="@Model.SelectedDatabaseName"
-                           asp-route-SelectedTableSelectionValue="@Model.SelectedTableSelectionValue"
-                           asp-route-SortColumn="Name"
-                           asp-route-SortDescending="@Model.GetNextSortDescending("Name")"
-                           class="schema-browser-sort-link">
-                            Name @Model.GetSortIndicator("Name")
-                        </a>
-                    </th>
-                    <th>Data Type</th>
-                    <th data-bs-toggle="tooltip" title="Distinct non-null values in the column">CountDistinct</th>
-                    <th data-bs-toggle="tooltip" title="Number of null values in the column">Null Count</th>
-                    <th data-bs-toggle="tooltip" title="Null count divided by total rows">Null %</th>
-                    <th data-bs-toggle="tooltip" title="Lowest non-null value">Min</th>
-                    <th data-bs-toggle="tooltip" title="Average for numeric columns">Average</th>
-                    <th data-bs-toggle="tooltip" title="Highest non-null value">Max</th>
-                    <th data-bs-toggle="tooltip" title="Standard deviation for numeric columns">StDev</th>
-                    <th data-bs-toggle="tooltip" title="Most common non-null value">Most Frequent</th>
-                    <th data-bs-toggle="tooltip" title="Occurrences of the most frequent value">Freq Count</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var column in Model.ViewModel.Columns)
-                {
+
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Column Profiles for @Model.ViewModel.SelectedTableDisplayName</span>
+            <span class="text-muted small">CountDistinct, null counts, min/max, averages, standard deviation, and most frequent values</span>
+        </div>
+        <div class="profiling-table-scrollbar" aria-hidden="true">
+            <div class="profiling-table-scrollbar-spacer"></div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle profiling-results-grid">
+                <thead>
                     <tr>
-                        <td>@column.Ordinal</td>
-                        <td>@column.Name</td>
-                        <td>@column.DataType</td>
-                        <td>@column.CountDistinct</td>
-                        <td>@column.NullCount</td>
-                        <td>@column.NullPercent</td>
-                        <td>@column.MinValue</td>
-                        <td>@column.AverageValue</td>
-                        <td>@column.MaxValue</td>
-                        <td>@column.StandardDeviation</td>
-                        <td>@column.MostFrequentValue</td>
-                        <td>@column.MostFrequentCount</td>
+                        <th>
+                            <a asp-page="/Profiling/Index"
+                               asp-route-SelectedDatabaseName="@Model.SelectedDatabaseName"
+                               asp-route-SelectedTableSelectionValue="@Model.SelectedTableSelectionValue"
+                               asp-route-SortColumn="Ordinal"
+                               asp-route-SortDescending="@Model.GetNextSortDescending("Ordinal")"
+                               class="schema-browser-sort-link">
+                                Ordinal @Model.GetSortIndicator("Ordinal")
+                            </a>
+                        </th>
+                        <th>
+                            <a asp-page="/Profiling/Index"
+                               asp-route-SelectedDatabaseName="@Model.SelectedDatabaseName"
+                               asp-route-SelectedTableSelectionValue="@Model.SelectedTableSelectionValue"
+                               asp-route-SortColumn="Name"
+                               asp-route-SortDescending="@Model.GetNextSortDescending("Name")"
+                               class="schema-browser-sort-link">
+                                Name @Model.GetSortIndicator("Name")
+                            </a>
+                        </th>
+                        <th>Data Type</th>
+                        <th data-bs-toggle="tooltip" title="Number of null values in the column">Null Count</th>
+                        <th data-bs-toggle="tooltip" title="Null count divided by total rows">Null %</th>
+                        <th data-bs-toggle="tooltip" title="Distinct non-null values in the column">CountDistinct</th>
+                        <th data-bs-toggle="tooltip" title="Lowest non-null value">Min</th>
+                        <th data-bs-toggle="tooltip" title="Highest non-null value">Max</th>
+                        <th data-bs-toggle="tooltip" title="Average for numeric columns">Average</th>
+                        <th data-bs-toggle="tooltip" title="Standard deviation for numeric columns">StDev</th>
+                        <th data-bs-toggle="tooltip" title="Most common non-null value">Most Frequent</th>
+                        <th data-bs-toggle="tooltip" title="Occurrences of the most frequent value">Freq Count</th>
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @foreach (var column in Model.ViewModel.Columns)
+                    {
+                        <tr>
+                            <td>@column.Ordinal</td>
+                            <td>@column.Name</td>
+                            <td>@column.DataType</td>
+                            <td>@column.NullCount</td>
+                            <td>@column.NullPercent</td>
+                            <td>@column.CountDistinct</td>
+                            <td>@column.MinValue</td>
+                            <td>@column.MaxValue</td>
+                            <td>@column.AverageValue</td>
+                            <td>@column.StandardDeviation</td>
+                            <td>@column.MostFrequentValue</td>
+                            <td>@column.MostFrequentCount</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     </div>
-</div>
+}

@@ -9,11 +9,31 @@
 <div class="text-muted small mb-3 d-flex flex-wrap gap-3">
     <span><strong>Server:</strong> @Model.ServerName</span>
     <span><strong>Database:</strong> @Model.DatabaseName</span>
+    @if (!string.IsNullOrWhiteSpace(Model.ReportProgress?.Stage))
+    {
+        <span><strong>Scope:</strong> @Model.ReportProgress.Stage</span>
+    }
 </div>
 
 <div class="mb-3">
     <a asp-page="/Reports/Tables" class="btn btn-outline-secondary btn-sm">Back to table selection</a>
 </div>
+
+<form method="get" class="card shadow-sm mb-3">
+    <div class="card-header">Report content</div>
+    <div class="card-body d-flex flex-column gap-2">
+        <input type="hidden" name="jobId" value="@Model.ReportJobId" />
+        <div class="form-check">
+            <input class="form-check-input" type="radio" name="includeTableProfileInfo" value="false" id="confirm-columns-only" @(Model.IncludeTableProfileInfo ? null : "checked=\"checked\"") onchange="this.form.submit()" />
+            <label class="form-check-label" for="confirm-columns-only">Include columns only</label>
+        </div>
+        <div class="form-check">
+            <input class="form-check-input" type="radio" name="includeTableProfileInfo" value="true" id="confirm-columns-and-profile-info" @(Model.IncludeTableProfileInfo ? "checked=\"checked\"" : null) onchange="this.form.submit()" />
+            <label class="form-check-label" for="confirm-columns-and-profile-info">Include columns and data profile info</label>
+        </div>
+        <div class="text-muted small">Toggling this changes the estimated time and the resulting Excel layout.</div>
+    </div>
+</form>
 
 @if (Model.Estimate is not null && Model.ReportProgress is null)
 {
@@ -94,6 +114,7 @@
         }
 
         <form method="post" asp-page-handler="Generate" class="mt-3">
+            <input type="hidden" asp-for="IncludeTableProfileInfo" />
             <button type="submit" class="btn btn-primary" @(Model.SelectedTables.Count == 0 ? "disabled" : null)>Generate Excel report</button>
         </form>
     </div>

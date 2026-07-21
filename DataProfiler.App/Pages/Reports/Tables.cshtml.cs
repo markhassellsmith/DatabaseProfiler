@@ -48,7 +48,7 @@ public class TablesModel : PageModel
             return Page();
         }
 
-        HttpContext.Session.SetReportTableSelection(SelectedTableValues);
+        HttpContext.Session.SetReportTableSelection(SelectedTableValues, HttpContext.Session.GetConnection()?.IncludeTableProfileInfo ?? true);
         return RedirectToPage("/Reports/Confirm");
     }
 

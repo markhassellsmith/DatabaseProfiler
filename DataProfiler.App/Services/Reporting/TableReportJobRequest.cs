@@ -7,4 +7,6 @@ public sealed record TableReportJobRequest(
     ConnectionSessionModel Connection,
     string DatabaseName,
     IReadOnlyCollection<string> SelectedValues,
-    int EstimatedDurationSeconds);
+    int EstimatedDurationSeconds,
+    bool IncludeTableProfileInfo,
+    bool IncludeTableDetailSheets);

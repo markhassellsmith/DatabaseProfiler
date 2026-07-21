@@ -32,8 +32,15 @@ public class ConfirmModel : PageModel
 
     public string? StatusMessage { get; private set; }
 
-    public async Task OnGetAsync(string? jobId)
+    [BindProperty]
+    public bool IncludeTableProfileInfo { get; set; } = true;
+
+    public async Task<IActionResult> OnGetAsync(string? jobId, bool? includeTableProfileInfo)
     {
+        var connection = HttpContext.Session.GetConnection();
+        IncludeTableProfileInfo = includeTableProfileInfo ?? connection?.IncludeTableProfileInfo ?? true;
+        HttpContext.Session.SetReportTableSelection(connection?.SelectedReportTableValues ?? Array.Empty<string>(), IncludeTableProfileInfo);
+
         await LoadSelectionAsync();
         ReportJobId = ResolveJobId(jobId);
         Estimate = CreateEstimate(SelectedTables);
@@ -42,10 +49,18 @@ public class ConfirmModel : PageModel
         {
             ReportProgress = _jobStore.GetProgress(ReportJobId);
         }
+
+        return Page();
     }
 
     public async Task<IActionResult> OnPostGenerateAsync(CancellationToken cancellationToken)
     {
+        var connection = HttpContext.Session.GetConnection();
+        if (connection is not null)
+        {
+            IncludeTableProfileInfo = connection.IncludeTableProfileInfo;
+        }
+
         await LoadSelectionAsync();
 
         if (string.IsNullOrWhiteSpace(ServerName) || string.IsNullOrWhiteSpace(DatabaseName) || SelectedTables.Count == 0)
@@ -53,14 +68,26 @@ public class ConfirmModel : PageModel
             return Page();
         }
 
-        var connection = HttpContext.Session.GetConnection();
+        connection = HttpContext.Session.GetConnection();
         var selectedValues = connection?.SelectedReportTableValues ?? Array.Empty<string>();
+        var includeTableProfileInfo = IncludeTableProfileInfo;
+        HttpContext.Session.SetReportTableSelection(selectedValues, includeTableProfileInfo);
         Estimate = CreateEstimate(SelectedTables);
+        Estimate = includeTableProfileInfo
+            ? Estimate
+            : new TableReportEstimateModel(Estimate?.SelectedTableCount ?? SelectedTables.Count, 5, 10);
         var estimatedDurationSeconds = Estimate?.MaximumSeconds ?? 0;
-        var jobId = _jobStore.CreateJob(estimatedDurationSeconds);
+        var jobId = _jobStore.CreateJob(estimatedDurationSeconds, connection!, DatabaseName!, selectedValues);
         HttpContext.Session.SetActiveReportJobId(jobId);
 
-        await _jobQueue.QueueAsync(new TableReportJobRequest(jobId, connection!, DatabaseName!, selectedValues, estimatedDurationSeconds), CancellationToken.None);
+        await _jobQueue.QueueAsync(new TableReportJobRequest(
+            JobId: jobId,
+            Connection: connection!,
+            DatabaseName: DatabaseName!,
+            SelectedValues: selectedValues,
+            EstimatedDurationSeconds: estimatedDurationSeconds,
+            IncludeTableProfileInfo: includeTableProfileInfo,
+            IncludeTableDetailSheets: true), CancellationToken.None);
         return RedirectToPage(new { jobId });
     }
 

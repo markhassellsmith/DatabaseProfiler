@@ -29,6 +29,8 @@ public sealed class TableReportService
         IEnumerable<string> selectedTableValues,
         string jobId,
         IProgress<TableReportProgressModel>? progress,
+        bool includeTableProfileInfo,
+        bool includeTableDetailSheets,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -37,7 +39,7 @@ public sealed class TableReportService
 
         ReportProgress(progress, jobId, "Starting", 5, "Preparing report generation.");
 
-        var report = await BuildReportAsync(connection, databaseName, selectedTableValues, jobId, progress, cancellationToken);
+        var report = await BuildReportAsync(connection, databaseName, selectedTableValues, jobId, progress, includeTableProfileInfo, includeTableDetailSheets, cancellationToken);
         ReportProgress(progress, jobId, "Rendering workbook", 95, "Building the Excel workbook.");
         var bytes = CreateWorkbook(report);
         var fileName = CreateFileName(report);
@@ -51,6 +53,8 @@ public sealed class TableReportService
         IEnumerable<string> selectedTableValues,
         string jobId,
         IProgress<TableReportProgressModel>? progress,
+        bool includeTableProfileInfo,
+        bool includeTableDetailSheets,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(connection.ServerName))
@@ -99,26 +103,36 @@ public sealed class TableReportService
                 table.Name,
                 cancellationToken);
 
-            ReportProgress(progress, jobId, "Profiling data", 25 + (index * 40 / Math.Max(selectedKeys.Length, 1)), $"Profiling {table.DisplayName}.");
-            var profiling = await _tableProfilingService.ProfileTableAsync(
-                connection,
-                databaseName,
-                tables,
-                table.SchemaName,
-                table.Name,
-                cancellationToken);
+            ColumnProfileModel[]? profileColumns = null;
+            string profileScope = string.Empty;
+            if (includeTableProfileInfo)
+            {
+                ReportProgress(progress, jobId, "Profiling data", 25 + (index * 40 / Math.Max(selectedKeys.Length, 1)), $"Profiling {table.DisplayName}.");
+                var profiling = await _tableProfilingService.ProfileTableAsync(
+                    connection,
+                    databaseName,
+                    tables,
+                    table.SchemaName,
+                    table.Name,
+                    cancellationToken);
+
+                profileColumns = profiling.Columns.ToArray();
+                profileScope = profiling.ProfileScope;
+            }
 
             reportTables.Add(new TableReportTableModel
             {
                 ColumnCount = table.ColumnCount,
-                Columns = MergeColumns(schemaBrowser.Columns, profiling.Columns),
+                Columns = MergeColumns(schemaBrowser.Columns, profileColumns),
                 HasPrimaryKey = table.HasPrimaryKey,
+                IncludeProfileInfo = includeTableProfileInfo,
                 RowCount = table.RowCount,
+                ProfileScope = profileScope,
                 SchemaName = table.SchemaName,
                 TableName = table.Name
             });
 
-            ReportProgress(progress, jobId, "Table complete", 35 + (index * 45 / Math.Max(selectedKeys.Length, 1)), $"Finished {table.DisplayName}.");
+            ReportProgress(progress, jobId, "Table complete", includeTableProfileInfo ? 35 + (index * 45 / Math.Max(selectedKeys.Length, 1)) : 85, $"Finished {table.DisplayName}.");
         }
 
         if (reportTables.Count == 0)
@@ -131,10 +145,42 @@ public sealed class TableReportService
             .ThenBy(table => table.TableName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        var emptyTableNames = reportTables
+            .Where(table => table.RowCount <= 0)
+            .Select(table => table.DisplayName)
+            .ToArray();
+
+        var largestRowTable = reportTables
+            .OrderByDescending(table => table.RowCount)
+            .ThenBy(table => table.SchemaName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(table => table.TableName, StringComparer.OrdinalIgnoreCase)
+            .First();
+
+        var smallestColumnTable = reportTables
+            .OrderBy(table => table.ColumnCount)
+            .ThenBy(table => table.SchemaName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(table => table.TableName, StringComparer.OrdinalIgnoreCase)
+            .First();
+
+        var largestColumnTable = reportTables
+            .OrderByDescending(table => table.ColumnCount)
+            .ThenBy(table => table.SchemaName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(table => table.TableName, StringComparer.OrdinalIgnoreCase)
+            .First();
+
         return new TableReportModel
         {
             DatabaseName = databaseName,
+            EmptyTablesText = emptyTableNames.Length == 0 ? "None" : string.Join(", ", emptyTableNames),
+            IncludeProfileInfo = includeTableProfileInfo,
+            IncludeTableDetailSheets = includeTableDetailSheets,
             GeneratedOnUtc = DateTimeOffset.UtcNow,
+            LargestColumnTableColumnCount = largestColumnTable.ColumnCount,
+            LargestColumnTableName = largestColumnTable.DisplayName,
+            LargestRowTableName = largestRowTable.DisplayName,
+            LargestRowTableRowCount = largestRowTable.RowCount,
+            SmallestColumnTableColumnCount = smallestColumnTable.ColumnCount,
+            SmallestColumnTableName = smallestColumnTable.DisplayName,
             ServerName = connection.ServerName,
             Tables = reportTables
         };
@@ -155,9 +201,12 @@ public sealed class TableReportService
 
     private static IReadOnlyList<TableReportColumnModel> MergeColumns(
         IReadOnlyList<SchemaColumnModel> schemaColumns,
-        IReadOnlyList<ColumnProfileModel> profileColumns)
+        IReadOnlyList<ColumnProfileModel>? profileColumns)
     {
-        var profileLookup = profileColumns.ToDictionary(column => column.Name, StringComparer.OrdinalIgnoreCase);
+        var profileLookup = (profileColumns ?? Array.Empty<ColumnProfileModel>())
+            .Where(column => !string.IsNullOrWhiteSpace(column.Name))
+            .GroupBy(column => column.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
         return schemaColumns
             .OrderBy(column => column.Ordinal)
@@ -227,11 +276,14 @@ public sealed class TableReportService
             usedSheetNames.Add("Summary");
 
             var sheetId = 2u;
-            foreach (var table in report.Tables)
+            if (report.IncludeTableDetailSheets)
             {
-                var sheetName = CreateSheetName(table.DisplayName, usedSheetNames);
-                usedSheetNames.Add(sheetName);
-                AddTableSheet(workbookPart, sheets, table, sheetName, sheetId++);
+                foreach (var table in report.Tables)
+                {
+                    var sheetName = CreateSheetName(table.DisplayName, usedSheetNames);
+                    usedSheetNames.Add(sheetName);
+                    AddTableSheet(workbookPart, sheets, table, sheetName, sheetId++);
+                }
             }
 
             workbookPart.Workbook.Save();
@@ -263,12 +315,19 @@ public sealed class TableReportService
         AppendTextRow(sheetData, BoldTextStyleIndex, "Report generated", report.GeneratedOnUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
         AppendTextRow(sheetData, BoldTextStyleIndex, "Server", report.ServerName ?? string.Empty, "Database", report.DatabaseName ?? string.Empty);
         AppendEmptyRow(sheetData);
-        AppendHeaderRow(sheetData, "Table", "Rows", "Columns", "Primary key");
+        AppendTitleRow(sheetData, 4U, "Database info", TitleStyleIndex);
+        AppendLabelValueRow(sheetData, "Empty tables", report.EmptyTablesText, WrappedBoldTextStyleIndex, WrappedBoldTextStyleIndex);
+        AppendTextRow(sheetData, BoldTextStyleIndex, "Most rows", report.LargestRowTableName, report.LargestRowTableRowCount.ToString(CultureInfo.InvariantCulture));
+        AppendTextRow(sheetData, BoldTextStyleIndex, "Fewest columns", report.SmallestColumnTableName, report.SmallestColumnTableColumnCount.ToString(CultureInfo.InvariantCulture));
+        AppendTextRow(sheetData, BoldTextStyleIndex, "Most columns", report.LargestColumnTableName, report.LargestColumnTableColumnCount.ToString(CultureInfo.InvariantCulture));
+        AppendEmptyRow(sheetData);
+        AppendTitleRow(sheetData, 4U, "Tables", TitleStyleIndex);
+        AppendHeaderRow(sheetData, "Table", "Rows", "Columns", "Primary key", "Profile info");
 
         var rowIndex = 0;
         foreach (var table in report.Tables)
         {
-            AppendDataRow(sheetData, rowIndex++ % 2 == 0 ? BandedRowStyleIndex : null, table.DisplayName, table.RowCount, table.ColumnCount, table.HasPrimaryKey ? "Yes" : "No");
+            AppendDataRow(sheetData, rowIndex++ % 2 == 0 ? BandedRowStyleIndex : null, table.DisplayName, table.RowCount, table.ColumnCount, table.HasPrimaryKey ? "Yes" : "No", table.IncludeProfileInfo ? "Yes" : "No");
         }
 
         sheets.Append(new Sheet
@@ -301,52 +360,88 @@ public sealed class TableReportService
         AppendTitleRow(sheetData, 18U, table.DisplayName, TitleStyleIndex);
         AppendTextRow(sheetData, BoldTextStyleIndex, "Rows", table.RowCount.ToString(CultureInfo.InvariantCulture), "Columns", table.ColumnCount.ToString(CultureInfo.InvariantCulture));
         AppendTextRow(sheetData, BoldTextStyleIndex, "Primary key", table.HasPrimaryKey ? "Yes" : "No", "Schema", table.SchemaName);
+        AppendTextRow(sheetData, BoldTextStyleIndex, "Profile scope", string.IsNullOrWhiteSpace(table.ProfileScope) ? "Unknown" : table.ProfileScope);
         AppendEmptyRow(sheetData);
-        AppendHeaderRow(
-            sheetData,
-            "Ordinal",
-            "Column",
-            "Data type",
-            "Length",
-            "Nullable",
-            "Default",
-            "PK",
-            "FK",
-            "Indexed",
-            "Null count",
-            "Null %",
-            "Distinct",
-            "Min",
-            "Average",
-            "Max",
-            "Std dev",
-            "Most frequent",
-            "Frequency");
+        if (table.IncludeProfileInfo)
+        {
+            AppendHeaderRow(
+                sheetData,
+                "Ordinal",
+                "Column",
+                "Data type",
+                "Length",
+                "Nullable",
+                "Default",
+                "PK",
+                "FK",
+                "Indexed",
+                "Null count",
+                "Null %",
+                "Distinct",
+                "Min",
+                "Max",
+                "Average",
+                "Std dev",
+                "Most frequent",
+                "Frequency");
+        }
+        else
+        {
+            AppendHeaderRow(
+                sheetData,
+                "Ordinal",
+                "Column",
+                "Data type",
+                "Length",
+                "Nullable",
+                "Default",
+                "PK",
+                "FK",
+                "Indexed");
+        }
 
         var rowIndex = 0;
         foreach (var column in table.Columns)
         {
-            AppendDataRow(
-                sheetData,
-                rowIndex++ % 2 == 0 ? BandedRowStyleIndex : null,
-                column.Ordinal,
-                column.Name,
-                column.DataType,
-                column.LengthDisplay,
-                column.IsNullable ? "Yes" : "No",
-                column.DefaultValue ?? string.Empty,
-                column.IsPrimaryKey ? "Yes" : "No",
-                column.IsForeignKey ? "Yes" : "No",
-                column.IsIndexed ? "Yes" : "No",
-                column.NullCount,
-                column.NullPercent,
-                column.CountDistinct,
-                column.MinValue,
-                column.AverageValue,
-                column.MaxValue,
-                column.StandardDeviation,
-                column.MostFrequentValue,
-                column.MostFrequentCount);
+            if (table.IncludeProfileInfo)
+            {
+                AppendDataRow(
+                    sheetData,
+                    rowIndex++ % 2 == 0 ? BandedRowStyleIndex : null,
+                    column.Ordinal,
+                    column.Name,
+                    column.DataType,
+                    column.LengthDisplay,
+                    column.IsNullable ? "Yes" : "No",
+                    column.DefaultValue ?? string.Empty,
+                    column.IsPrimaryKey ? "Yes" : "No",
+                    column.IsForeignKey ? "Yes" : "No",
+                    column.IsIndexed ? "Yes" : "No",
+                    column.NullCount,
+                    column.NullPercent,
+                    column.CountDistinct,
+                    column.MinValue,
+                    column.MaxValue,
+                    column.AverageValue,
+                    column.StandardDeviation,
+                    column.MostFrequentValue,
+                    column.MostFrequentCount);
+            }
+            else
+            {
+                AppendDataRow(
+                    sheetData,
+                    rowIndex++ % 2 == 0 ? BandedRowStyleIndex : null,
+                    column.Ordinal,
+                    column.Name,
+                    column.DataType,
+                    column.LengthDisplay,
+                    column.IsNullable ? "Yes" : "No",
+                    column.DefaultValue ?? string.Empty,
+                    column.IsPrimaryKey ? "Yes" : "No",
+                    column.IsForeignKey ? "Yes" : "No",
+                    column.IsIndexed ? "Yes" : "No");
+            }
         }
 
         sheets.Append(new Sheet
@@ -433,6 +528,14 @@ public sealed class TableReportService
         sheetData.AppendChild(row);
     }
 
+    private static void AppendLabelValueRow(SheetData sheetData, string label, string value, uint labelStyleIndex, uint valueStyleIndex)
+    {
+        var row = new Row();
+        row.Append(CreateTextCell(label, labelStyleIndex));
+        row.Append(CreateTextCell(value, valueStyleIndex));
+        sheetData.AppendChild(row);
+    }
+
     private static void AppendDataRow(SheetData sheetData, params object?[] values)
     {
         var row = new Row();
@@ -502,7 +605,7 @@ public sealed class TableReportService
             new ForegroundColor { Rgb = "FFF9FBFD" },
             new BackgroundColor { Indexed = 64 }) { PatternType = PatternValues.Solid }));
         fills.Append(new Fill(new PatternFill(
-            new ForegroundColor { Rgb = "FFD9E2F3" },
+            new ForegroundColor { Rgb = "FF1F1F1F" },
             new BackgroundColor { Indexed = 64 }) { PatternType = PatternValues.Solid }));
         fills.Count = 5U;
 
@@ -520,7 +623,18 @@ public sealed class TableReportService
         cellFormats.Append(new CellFormat { FontId = 1U, FillId = 2U, BorderId = 0U, ApplyFont = true, ApplyFill = true });
         cellFormats.Append(new CellFormat { FillId = 3U, BorderId = 0U, ApplyFill = true });
         cellFormats.Append(new CellFormat { FontId = 2U, FillId = 4U, BorderId = 0U, ApplyFont = true, ApplyFill = true });
-        cellFormats.Count = 5U;
+        cellFormats.Append(new CellFormat
+        {
+            FontId = 1U,
+            ApplyFont = true,
+            ApplyAlignment = true,
+            Alignment = new Alignment
+            {
+                Vertical = VerticalAlignmentValues.Top,
+                WrapText = true
+            }
+        });
+        cellFormats.Count = 6U;
 
         var cellStyles = new CellStyles();
         cellStyles.Append(new CellStyle { Name = "Normal", FormatId = 0U, BuiltinId = 0U });
@@ -556,12 +670,17 @@ public sealed class TableReportService
 
     private const uint TitleStyleIndex = 4U;
 
+    private const uint WrappedBoldTextStyleIndex = 5U;
+
     private static string CreateFileName(TableReportModel report)
     {
         var server = SanitizeFileName(report.ServerName ?? "Server");
         var database = SanitizeFileName(report.DatabaseName ?? "Database");
         var timestamp = report.GeneratedOnUtc.ToLocalTime().ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-        return $"{server}_{database}_TableReport_{timestamp}.xlsx";
+        var reportKind = report.IncludeTableDetailSheets
+            ? "TableReport"
+            : "DatabaseReport";
+        return $"{server}_{database}_{reportKind}_{timestamp}.xlsx";
     }
 
     private static string CreateSheetName(string displayName, ISet<string> usedSheetNames)

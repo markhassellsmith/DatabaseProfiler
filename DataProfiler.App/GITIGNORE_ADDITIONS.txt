@@ -1,45 +1,4 @@
-# Build results
-[Bb]in/
-[Oo]bj/
-[Ll]og/
-
-# Visual Studio cache and settings
-.vs/
-*.user
-*.suo
-*.userosscache
-*.sln.docstates
-*.cache
-*.VC.db
-*.VC.VC.opendb
-
-# Rider / ReSharper
-.idea/
-*.sln.iml
-*_i.c
-*_p.c
-*.ncb
-*.rsp
-
-# ASP.NET Core / web output
-wwwroot/lib/
-
-# Test results
-TestResults/
-*.trx
-
-# NuGet
-*.nupkg
-*.snupkg
-project.lock.json
-artifacts/
-
-# Publish output
-publish/
-
-# OS generated files
-.DS_Store
-Thumbs.db
+# Add these lines to your .gitignore file to exclude runtime-generated files:
 
 # ===========================================
 # DataProfiler Application-Specific Ignores
