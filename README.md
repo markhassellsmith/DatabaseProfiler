@@ -27,16 +27,20 @@ DataProfiler follows a simple, guided workflow:
 
 Start by connecting to your SQL Server instance and selecting a database to explore.
 
-### 2. Object Browser
+### 2. Object Browser Sections
+Click the down-arrow to the right of the Tables, Views, Functions or Stored Procedures section to view lists of objects.
+![Object Browser Screenshot](docs/screenshots/object-browser-typelist.png)
+*Screenshot placeholder: Object Browser showing choice of Tables, Views, Functions or Stored Procedures*
 
-View all tables in the selected database with key metadata:
-- Table names and schemas
-- Row counts
-- Column counts
-- Primary key indicators
+#### 2A. Clicking on a table name opens the Column Browser
 
-![Object Browser Screenshot](docs/screenshots/object-browser.png)
+![Object Browser Screenshot](docs/screenshots/object-browser-tablelist.png)
 *Screenshot placeholder: Object Browser showing list of tables*
+
+#### 2B. Clicking on the "Profile Info" link beside a table name opens the data profile for the table 
+- View names and schemas
+
+
 
 ### 3. Column Browser
 
