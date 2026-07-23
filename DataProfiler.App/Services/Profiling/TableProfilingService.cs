@@ -92,18 +92,41 @@ public sealed class TableProfilingService
             };
         }
 
-        var columnMetadata = await LoadColumnMetadataAsync(sqlConnection, selectedTable.SchemaName, selectedTable.Name, cancellationToken);
-        ApplyAdaptiveProfilingPolicy(
-            selectedTable.RowCount,
-            selectedTable.ColumnCount,
-            columnMetadata);
-        var columnProfiles = await LoadColumnProfilesAsync(
-            sqlConnection,
-            selectedTable.SchemaName,
-            selectedTable.Name,
-            columnMetadata,
-            selectedTable.RowCount,
-            cancellationToken);
+        List<ColumnProfileModel> columnProfiles;
+
+        // Use optimized stored procedure if enabled
+        if (_policyOptions.UseStoredProcedure)
+        {
+            try
+            {
+                columnProfiles = await LoadColumnProfilesUsingStoredProcAsync(
+                    sqlConnection,
+                    selectedTable.SchemaName,
+                    selectedTable.Name,
+                    includeFrequencyAnalysis: true,
+                    cancellationToken);
+            }
+            catch (SqlException ex) when (ex.Number == 2812) // Could not find stored procedure
+            {
+                // Fall back to dynamic SQL approach if stored procedure not found
+                columnProfiles = await LoadColumnProfilesLegacyAsync(
+                    sqlConnection,
+                    selectedTable.SchemaName,
+                    selectedTable.Name,
+                    selectedTable.RowCount,
+                    cancellationToken);
+            }
+        }
+        else
+        {
+            // Use legacy dynamic SQL approach
+            columnProfiles = await LoadColumnProfilesLegacyAsync(
+                sqlConnection,
+                selectedTable.SchemaName,
+                selectedTable.Name,
+                selectedTable.RowCount,
+                cancellationToken);
+        }
 
         return new ProfilingViewModel
         {
@@ -115,6 +138,129 @@ public sealed class TableProfilingService
             RowCount = selectedTable.RowCount,
             Tables = tables
         };
+    }
+
+    /// <summary>
+    /// Profile table using optimized stored procedure (usp_ProfileTable v3)
+    /// </summary>
+    private static async Task<List<ColumnProfileModel>> LoadColumnProfilesUsingStoredProcAsync(
+        SqlConnection sqlConnection,
+        string schemaName,
+        string tableName,
+        bool includeFrequencyAnalysis,
+        CancellationToken cancellationToken)
+    {
+        var profiles = new List<ColumnProfileModel>();
+        var fullTableName = string.IsNullOrWhiteSpace(schemaName) ? tableName : $"{schemaName}.{tableName}";
+
+        await using var command = sqlConnection.CreateCommand();
+        command.CommandType = System.Data.CommandType.StoredProcedure;
+        command.CommandText = "dbo.usp_ProfileTable";
+        command.CommandTimeout = 900; // 15 minutes
+
+        command.Parameters.Add(new SqlParameter("@TableName", System.Data.SqlDbType.NVarChar, 256) { Value = fullTableName });
+        command.Parameters.Add(new SqlParameter("@SamplePercent", System.Data.SqlDbType.Decimal) { Value = 100.0m, Precision = 5, Scale = 2 });
+        command.Parameters.Add(new SqlParameter("@IncludeFrequencyAnalysis", System.Data.SqlDbType.Bit) { Value = includeFrequencyAnalysis });
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        // First result set: Table metadata
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            // We could capture SchemaName, TableName, TotalRows, SamplePercent here if needed
+        }
+
+        // Second result set: Column profiles
+        if (await reader.NextResultAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                profiles.Add(new ColumnProfileModel
+                {
+                    // Core Column Identity
+                    Ordinal = reader.GetInt32(reader.GetOrdinal("OrdinalPosition")),
+                    Name = reader.GetString(reader.GetOrdinal("ColumnName")),
+                    DataType = reader.GetString(reader.GetOrdinal("DataType")),
+
+                    // Common Profile Statistics
+                    RowsProfiled = await reader.IsDBNullAsync(reader.GetOrdinal("RowsProfiled"), cancellationToken) 
+                        ? null 
+                        : reader.GetInt64(reader.GetOrdinal("RowsProfiled")),
+                    NullCount = await reader.IsDBNullAsync(reader.GetOrdinal("NullCount"), cancellationToken)
+                        ? string.Empty
+                        : reader.GetInt64(reader.GetOrdinal("NullCount")).ToString(CultureInfo.InvariantCulture),
+                    NullPercent = await reader.IsDBNullAsync(reader.GetOrdinal("PercentNull"), cancellationToken)
+                        ? string.Empty
+                        : $"{reader.GetDecimal(reader.GetOrdinal("PercentNull")):0.0}%",
+                    CountDistinct = await reader.IsDBNullAsync(reader.GetOrdinal("DistinctCount"), cancellationToken)
+                        ? string.Empty
+                        : reader.GetInt64(reader.GetOrdinal("DistinctCount")).ToString(CultureInfo.InvariantCulture),
+                    DistinctPercent = await reader.IsDBNullAsync(reader.GetOrdinal("DistinctPercent"), cancellationToken)
+                        ? string.Empty
+                        : $"{reader.GetDecimal(reader.GetOrdinal("DistinctPercent")):0.0}%",
+
+                    // Frequency Analysis
+                    MostFrequentValue = await reader.IsDBNullAsync(reader.GetOrdinal("MostFrequentValue"), cancellationToken)
+                        ? string.Empty
+                        : reader.GetString(reader.GetOrdinal("MostFrequentValue")),
+                    MostFrequentCount = await reader.IsDBNullAsync(reader.GetOrdinal("MostFrequentCount"), cancellationToken)
+                        ? string.Empty
+                        : reader.GetInt64(reader.GetOrdinal("MostFrequentCount")).ToString(CultureInfo.InvariantCulture),
+                    MostFrequentPercent = await reader.IsDBNullAsync(reader.GetOrdinal("MostFrequentPercent"), cancellationToken)
+                        ? string.Empty
+                        : $"{reader.GetDecimal(reader.GetOrdinal("MostFrequentPercent")):0.0}%",
+
+                    // Numeric Profile Statistics
+                    MinValue = await reader.IsDBNullAsync(reader.GetOrdinal("MinValue"), cancellationToken)
+                        ? string.Empty
+                        : reader.GetString(reader.GetOrdinal("MinValue")),
+                    MaxValue = await reader.IsDBNullAsync(reader.GetOrdinal("MaxValue"), cancellationToken)
+                        ? string.Empty
+                        : reader.GetString(reader.GetOrdinal("MaxValue")),
+                    AverageValue = await reader.IsDBNullAsync(reader.GetOrdinal("AverageValue"), cancellationToken)
+                        ? string.Empty
+                        : reader.GetDecimal(reader.GetOrdinal("AverageValue")).ToString("0.####", CultureInfo.InvariantCulture),
+                    StandardDeviation = await reader.IsDBNullAsync(reader.GetOrdinal("StdDeviation"), cancellationToken)
+                        ? string.Empty
+                        : reader.GetDecimal(reader.GetOrdinal("StdDeviation")).ToString("0.####", CultureInfo.InvariantCulture),
+
+                    // Character Profile Statistics
+                    MinLength = await reader.IsDBNullAsync(reader.GetOrdinal("MinLength"), cancellationToken)
+                        ? null
+                        : reader.GetInt32(reader.GetOrdinal("MinLength")),
+                    MaxLengthObserved = await reader.IsDBNullAsync(reader.GetOrdinal("MaxLengthObserved"), cancellationToken)
+                        ? null
+                        : reader.GetInt32(reader.GetOrdinal("MaxLengthObserved")),
+                    AverageLength = await reader.IsDBNullAsync(reader.GetOrdinal("AverageLength"), cancellationToken)
+                        ? null
+                        : reader.GetDecimal(reader.GetOrdinal("AverageLength")),
+                    EmptyStringCount = await reader.IsDBNullAsync(reader.GetOrdinal("EmptyStringCount"), cancellationToken)
+                        ? null
+                        : reader.GetInt64(reader.GetOrdinal("EmptyStringCount")),
+                    WhitespaceOnlyCount = await reader.IsDBNullAsync(reader.GetOrdinal("WhitespaceOnlyCount"), cancellationToken)
+                        ? null
+                        : reader.GetInt64(reader.GetOrdinal("WhitespaceOnlyCount")),
+
+                    // Date/Time Profile Statistics
+                    MinDateValue = await reader.IsDBNullAsync(reader.GetOrdinal("MinDateValue"), cancellationToken)
+                        ? null
+                        : reader.GetDateTime(reader.GetOrdinal("MinDateValue")),
+                    MaxDateValue = await reader.IsDBNullAsync(reader.GetOrdinal("MaxDateValue"), cancellationToken)
+                        ? null
+                        : reader.GetDateTime(reader.GetOrdinal("MaxDateValue")),
+                    DateRangeDays = await reader.IsDBNullAsync(reader.GetOrdinal("DateRangeDays"), cancellationToken)
+                        ? null
+                        : reader.GetInt32(reader.GetOrdinal("DateRangeDays")),
+
+                    // Profile Metadata
+                    ProfileNote = await reader.IsDBNullAsync(reader.GetOrdinal("ProfileNote"), cancellationToken)
+                        ? null
+                        : reader.GetString(reader.GetOrdinal("ProfileNote"))
+                });
+            }
+        }
+
+        return profiles;
     }
 
     private static async Task<List<SchemaTableModel>> LoadTablesAsync(
@@ -283,6 +429,32 @@ public sealed class TableProfilingService
                 Name = column.Name,
                 Ordinal = column.Ordinal
             };
+    }
+
+    /// <summary>
+    /// Legacy profiling using dynamic SQL (pre-v3 approach).
+    /// Used as fallback when stored procedure is not available.
+    /// </summary>
+    private async Task<List<ColumnProfileModel>> LoadColumnProfilesLegacyAsync(
+        SqlConnection sqlConnection,
+        string schemaName,
+        string tableName,
+        long rowCount,
+        CancellationToken cancellationToken)
+    {
+        var columnMetadata = await LoadColumnMetadataAsync(sqlConnection, schemaName, tableName, cancellationToken);
+        ApplyAdaptiveProfilingPolicy(
+            rowCount,
+            columnMetadata.Count,
+            columnMetadata);
+
+        return await LoadColumnProfilesAsync(
+            sqlConnection,
+            schemaName,
+            tableName,
+            columnMetadata,
+            rowCount,
+            cancellationToken);
     }
 
     private static async Task<List<ColumnProfileModel>> LoadColumnProfilesAsync(

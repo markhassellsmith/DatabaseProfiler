@@ -216,24 +216,65 @@ public sealed class TableReportService
 
                 return new TableReportColumnModel
                 {
-                    AverageValue = profile?.AverageValue ?? string.Empty,
-                    CountDistinct = profile?.CountDistinct ?? string.Empty,
-                    DataType = column.DataType,
-                    DefaultValue = column.DefaultValue,
-                    IsForeignKey = column.IsForeignKey,
-                    IsIndexed = column.IsIndexed,
-                    IsNullable = column.IsNullable,
-                    IsPrimaryKey = column.IsPrimaryKey,
-                    LengthDisplay = column.LengthDisplay,
-                    MaxValue = profile?.MaxValue ?? string.Empty,
-                    MinValue = profile?.MinValue ?? string.Empty,
-                    MostFrequentCount = profile?.MostFrequentCount ?? string.Empty,
-                    MostFrequentValue = profile?.MostFrequentValue ?? string.Empty,
+                    // Core Column Identity
+                    Ordinal = column.Ordinal,
                     Name = column.Name,
+                    DataType = column.DataType,
+
+                    // Data Type Attributes
+                    LengthDisplay = column.LengthDisplay,
+                    PrecisionValue = column.PrecisionValue,
+                    ScaleValue = column.ScaleValue,
+                    ColumnCollation = column.ColumnCollation,
+
+                    // Common Column Properties
+                    IsNullable = column.IsNullable,
+                    DefaultValue = column.DefaultValue,
+
+                    // Special Column Types
+                    IsIdentity = column.IsIdentity,
+                    IdentitySeed = column.IdentitySeed,
+                    IdentityIncrement = column.IdentityIncrement,
+                    IsComputed = column.IsComputed,
+                    ComputedDefinition = column.ComputedDefinition,
+
+                    // Keys and Indexes
+                    IsPrimaryKey = column.IsPrimaryKey,
+                    IsIndexed = column.IsIndexed,
+                    IsForeignKey = column.IsForeignKey,
+
+                    // Common Profile Statistics
+                    RowsProfiled = profile?.RowsProfiled,
                     NullCount = profile?.NullCount ?? string.Empty,
                     NullPercent = profile?.NullPercent ?? string.Empty,
-                    Ordinal = column.Ordinal,
-                    StandardDeviation = profile?.StandardDeviation ?? string.Empty
+                    CountDistinct = profile?.CountDistinct ?? string.Empty,
+                    DistinctPercent = profile?.DistinctPercent ?? string.Empty,
+
+                    // Frequency Analysis
+                    MostFrequentValue = profile?.MostFrequentValue ?? string.Empty,
+                    MostFrequentCount = profile?.MostFrequentCount ?? string.Empty,
+                    MostFrequentPercent = profile?.MostFrequentPercent ?? string.Empty,
+
+                    // Numeric Profile Statistics
+                    MinValue = profile?.MinValue ?? string.Empty,
+                    MaxValue = profile?.MaxValue ?? string.Empty,
+                    AverageValue = profile?.AverageValue ?? string.Empty,
+                    StandardDeviation = profile?.StandardDeviation ?? string.Empty,
+
+                    // Character Profile Statistics
+                    MinLength = profile?.MinLength,
+                    MaxLengthObserved = profile?.MaxLengthObserved,
+                    AverageLength = profile?.AverageLength,
+                    EmptyStringCount = profile?.EmptyStringCount,
+                    WhitespaceOnlyCount = profile?.WhitespaceOnlyCount,
+
+                    // Date/Time Profile Statistics
+                    MinDateValue = profile?.MinDateValue,
+                    MaxDateValue = profile?.MaxDateValue,
+                    DateRangeDays = profile?.DateRangeDays,
+
+                    // Profile Metadata
+                    ProfileNote = profile?.ProfileNote
                 };
             })
             .ToArray();
@@ -270,18 +311,30 @@ public sealed class TableReportService
             CreateStylesheet(workbookPart);
 
             var sheets = workbookPart.Workbook.AppendChild(new Sheets());
-            AddSummarySheet(workbookPart, sheets, report);
 
             var usedSheetNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             usedSheetNames.Add("Summary");
 
-            var sheetId = 2u;
+            // Pre-calculate sheet names for all tables so we can create hyperlinks in the summary
+            var tableSheetNames = new Dictionary<string, string>();
             if (report.IncludeTableDetailSheets)
             {
                 foreach (var table in report.Tables)
                 {
                     var sheetName = CreateSheetName(table.DisplayName, usedSheetNames);
                     usedSheetNames.Add(sheetName);
+                    tableSheetNames[table.DisplayName] = sheetName;
+                }
+            }
+
+            AddSummarySheet(workbookPart, sheets, report, tableSheetNames);
+
+            var sheetId = 2u;
+            if (report.IncludeTableDetailSheets)
+            {
+                foreach (var table in report.Tables)
+                {
+                    var sheetName = tableSheetNames[table.DisplayName];
                     AddTableSheet(workbookPart, sheets, table, sheetName, sheetId++);
                 }
             }
@@ -292,7 +345,7 @@ public sealed class TableReportService
         return stream.ToArray();
     }
 
-    private static void AddSummarySheet(WorkbookPart workbookPart, Sheets sheets, TableReportModel report)
+    private static void AddSummarySheet(WorkbookPart workbookPart, Sheets sheets, TableReportModel report, Dictionary<string, string> tableSheetNames)
     {
         var sheetPart = workbookPart.AddNewPart<WorksheetPart>();
         var sheetData = new SheetData();
@@ -322,12 +375,34 @@ public sealed class TableReportService
         AppendTextRow(sheetData, BoldTextStyleIndex, "Most columns", report.LargestColumnTableName, report.LargestColumnTableColumnCount.ToString(CultureInfo.InvariantCulture));
         AppendEmptyRow(sheetData);
         AppendTitleRow(sheetData, 4U, "Tables", TitleStyleIndex);
-        AppendHeaderRow(sheetData, "Table", "Rows", "Columns", "Primary key", "Profile info");
+        AppendHeaderRow(sheetData, "Table", "Rows", "Columns", "Primary key", "Profile info", "Link to Table");
 
         var rowIndex = 0;
         foreach (var table in report.Tables)
         {
-            AppendDataRow(sheetData, rowIndex++ % 2 == 0 ? BandedRowStyleIndex : null, table.DisplayName, table.RowCount, table.ColumnCount, table.HasPrimaryKey ? "Yes" : "No", table.IncludeProfileInfo ? "Yes" : "No");
+            var styleIndex = rowIndex++ % 2 == 0 ? BandedRowStyleIndex : (uint?)null;
+            var row = new Row();
+
+            // Add regular data cells
+            row.Append(CreateTextCell(table.DisplayName, styleIndex));
+            row.Append(CreateNumberCell(table.RowCount.ToString(CultureInfo.InvariantCulture), styleIndex));
+            row.Append(CreateNumberCell(table.ColumnCount.ToString(CultureInfo.InvariantCulture), styleIndex));
+            row.Append(CreateTextCell(table.HasPrimaryKey ? "Yes" : "No", styleIndex));
+            row.Append(CreateTextCell(table.IncludeProfileInfo ? "Yes" : "No", styleIndex));
+
+            // Add hyperlink cell if table has a detail sheet
+            if (tableSheetNames.TryGetValue(table.DisplayName, out var sheetName))
+            {
+                var hyperlinkFormula = $"HYPERLINK(\"#{sheetName}!A1\",\"View details for {table.DisplayName}\")";
+                var hyperlinkCell = CreateFormulaCell(hyperlinkFormula, HyperlinkStyleIndex);
+                row.Append(hyperlinkCell);
+            }
+            else
+            {
+                row.Append(CreateTextCell(string.Empty, styleIndex));
+            }
+
+            sheetData.AppendChild(row);
         }
 
         sheets.Append(new Sheet
@@ -348,16 +423,27 @@ public sealed class TableReportService
         sheetView.Append(new Pane
         {
             State = PaneStateValues.Frozen,
-            TopLeftCell = "A6",
-            VerticalSplit = 5U,
-            ActivePane = PaneValues.BottomLeft
+            TopLeftCell = "C7",
+            VerticalSplit = 6U,   // Freeze top 6 rows (header row is row 6)
+            HorizontalSplit = 2U, // Freeze left 2 columns (Ordinal and Column name)
+            ActivePane = PaneValues.BottomRight
         });
-        sheetView.Append(new Selection { Pane = PaneValues.BottomLeft });
+        sheetView.Append(new Selection { Pane = PaneValues.BottomRight });
         sheetViews.Append(sheetView);
         sheetPart.Worksheet.Append(sheetViews);
         sheetPart.Worksheet.Append(sheetData);
 
-        AppendTitleRow(sheetData, 18U, table.DisplayName, TitleStyleIndex);
+        AppendTitleRow(sheetData, 40U, table.DisplayName, TitleStyleIndex);
+
+        // Add "Back to Summary" hyperlink in cell H1
+        var firstRow = sheetData.Elements<Row>().FirstOrDefault();
+        if (firstRow is not null)
+        {
+            var hyperlinkCell = CreateFormulaCell("HYPERLINK(\"#Summary!A1\",\"Back to Summary\")", HyperlinkStyleIndex);
+            hyperlinkCell.CellReference = "H1";
+            firstRow.Append(hyperlinkCell);
+        }
+
         AppendTextRow(sheetData, BoldTextStyleIndex, "Rows", table.RowCount.ToString(CultureInfo.InvariantCulture), "Columns", table.ColumnCount.ToString(CultureInfo.InvariantCulture));
         AppendTextRow(sheetData, BoldTextStyleIndex, "Primary key", table.HasPrimaryKey ? "Yes" : "No", "Schema", table.SchemaName);
         AppendTextRow(sheetData, BoldTextStyleIndex, "Profile scope", string.IsNullOrWhiteSpace(table.ProfileScope) ? "Unknown" : table.ProfileScope);
@@ -366,24 +452,55 @@ public sealed class TableReportService
         {
             AppendHeaderRow(
                 sheetData,
+                // Core Identity
                 "Ordinal",
                 "Column",
                 "Data type",
+                // Data Type Attributes
                 "Length",
+                "Precision",
+                "Scale",
+                "Collation",
+                // Common Properties
                 "Nullable",
                 "Default",
+                // Special Types
+                "Identity",
+                "Id Seed",
+                "Id Increment",
+                "Computed",
+                "Computed Def",
+                // Keys/Indexes
                 "PK",
                 "FK",
                 "Indexed",
+                // Common Profile Stats
+                "Rows Profiled",
                 "Null count",
                 "Null %",
                 "Distinct",
+                "Distinct %",
+                // Frequency
+                "Most frequent",
+                "Freq Count",
+                "Freq %",
+                // Numeric Stats
                 "Min",
                 "Max",
                 "Average",
                 "Std dev",
-                "Most frequent",
-                "Frequency");
+                // Character Stats
+                "Min Len",
+                "Max Len",
+                "Avg Len",
+                "Empty",
+                "Whitespace",
+                // Date Stats
+                "Min Date",
+                "Max Date",
+                "Date Range",
+                // Metadata
+                "Note");
         }
         else
         {
@@ -408,24 +525,55 @@ public sealed class TableReportService
                 AppendDataRow(
                     sheetData,
                     rowIndex++ % 2 == 0 ? BandedRowStyleIndex : null,
+                    // Core Identity
                     column.Ordinal,
                     column.Name,
                     column.DataType,
+                    // Data Type Attributes
                     column.LengthDisplay,
+                    column.PrecisionValue?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                    column.ScaleValue?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                    column.ColumnCollation ?? string.Empty,
+                    // Common Properties
                     column.IsNullable ? "Yes" : "No",
                     column.DefaultValue ?? string.Empty,
+                    // Special Types
+                    column.IsIdentity ? "Yes" : "No",
+                    column.IdentitySeed?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                    column.IdentityIncrement?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                    column.IsComputed ? "Yes" : "No",
+                    column.ComputedDefinition ?? string.Empty,
+                    // Keys/Indexes
                     column.IsPrimaryKey ? "Yes" : "No",
                     column.IsForeignKey ? "Yes" : "No",
                     column.IsIndexed ? "Yes" : "No",
+                    // Common Profile Stats
+                    column.RowsProfiled?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
                     column.NullCount,
                     column.NullPercent,
                     column.CountDistinct,
+                    column.DistinctPercent,
+                    // Frequency
+                    column.MostFrequentValue,
+                    column.MostFrequentCount,
+                    column.MostFrequentPercent,
+                    // Numeric Stats
                     column.MinValue,
                     column.MaxValue,
                     column.AverageValue,
                     column.StandardDeviation,
-                    column.MostFrequentValue,
-                    column.MostFrequentCount);
+                    // Character Stats
+                    column.MinLength?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                    column.MaxLengthObserved?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                    column.AverageLength?.ToString("F2", CultureInfo.InvariantCulture) ?? string.Empty,
+                    column.EmptyStringCount?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                    column.WhitespaceOnlyCount?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                    // Date Stats
+                    column.MinDateValue?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? string.Empty,
+                    column.MaxDateValue?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? string.Empty,
+                    column.DateRangeDays?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                    // Metadata
+                    column.ProfileNote ?? string.Empty);
             }
             else
             {
@@ -586,6 +734,22 @@ public sealed class TableReportService
         return cell;
     }
 
+    private static Cell CreateFormulaCell(string formula, uint? styleIndex = null)
+    {
+        var cell = new Cell
+        {
+            CellFormula = new CellFormula(formula),
+            DataType = CellValues.String
+        };
+
+        if (styleIndex.HasValue)
+        {
+            cell.StyleIndex = styleIndex.Value;
+        }
+
+        return cell;
+    }
+
     private static void CreateStylesheet(WorkbookPart workbookPart)
     {
         var stylesPart = workbookPart.AddNewPart<WorkbookStylesPart>();
@@ -593,7 +757,8 @@ public sealed class TableReportService
         fonts.Append(new Font());
         fonts.Append(new Font(new Bold()));
         fonts.Append(new Font(new Bold(), new Color { Rgb = "FFFFFFFF" }));
-        fonts.Count = 3U;
+        fonts.Append(new Font(new Bold(), new Underline(), new Color { Rgb = "FF0563C1" })); // Blue hyperlink style
+        fonts.Count = 4U;
 
         var fills = new Fills();
         fills.Append(new Fill(new PatternFill { PatternType = PatternValues.None }));
@@ -634,7 +799,8 @@ public sealed class TableReportService
                 WrapText = true
             }
         });
-        cellFormats.Count = 6U;
+        cellFormats.Append(new CellFormat { FontId = 3U, ApplyFont = true }); // Hyperlink style
+        cellFormats.Count = 7U;
 
         var cellStyles = new CellStyles();
         cellStyles.Append(new CellStyle { Name = "Normal", FormatId = 0U, BuiltinId = 0U });
@@ -671,6 +837,8 @@ public sealed class TableReportService
     private const uint TitleStyleIndex = 4U;
 
     private const uint WrappedBoldTextStyleIndex = 5U;
+
+    private const uint HyperlinkStyleIndex = 6U;
 
     private static string CreateFileName(TableReportModel report)
     {

@@ -220,30 +220,47 @@ public sealed class SchemaDiscoveryService
         await using var command = sqlConnection.CreateCommand();
         command.CommandText = """
             SELECT
+                -- Core Column Identity
+                c.column_id AS ColumnId,
                 c.name AS ColumnName,
                 ty.name AS DataType,
-                c.column_id AS ColumnId,
+
+                -- Data Type Attributes
                 c.max_length AS MaxLength,
+                c.precision AS PrecisionValue,
+                c.scale AS ScaleValue,
+                c.collation_name AS ColumnCollation,
+
+                -- Common Column Properties
                 c.is_nullable AS IsNullable,
                 dc.definition AS DefaultDefinition,
+
+                -- Special Column Types
+                c.is_identity AS IsIdentity,
+                CONVERT(bigint, ic.seed_value) AS IdentitySeed,
+                CONVERT(bigint, ic.increment_value) AS IdentityIncrement,
+                c.is_computed AS IsComputed,
+                cc.definition AS ComputedDefinition,
+
+                -- Keys and Indexes
                 CASE WHEN EXISTS (
                     SELECT 1
                     FROM sys.key_constraints kc
-                    INNER JOIN sys.index_columns ic ON ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
+                    INNER JOIN sys.index_columns ixc ON ixc.object_id = kc.parent_object_id AND ixc.index_id = kc.unique_index_id
                     WHERE kc.[type] = 'PK'
                       AND kc.parent_object_id = c.object_id
-                      AND ic.column_id = c.column_id
+                      AND ixc.column_id = c.column_id
                 ) THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS IsPrimaryKey,
                 CASE WHEN EXISTS (
                     SELECT 1
-                    FROM sys.index_columns ic
-                    INNER JOIN sys.indexes i ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+                    FROM sys.index_columns ixc
+                    INNER JOIN sys.indexes i ON i.object_id = ixc.object_id AND i.index_id = ixc.index_id
                     WHERE i.object_id = c.object_id
-                      AND ic.column_id = c.column_id
+                      AND ixc.column_id = c.column_id
                       AND i.is_hypothetical = 0
                       AND i.name IS NOT NULL
-                ) THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS IsIndexed
-                ,CASE WHEN EXISTS (
+                ) THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS IsIndexed,
+                CASE WHEN EXISTS (
                     SELECT 1
                     FROM sys.foreign_key_columns fkc
                     WHERE fkc.parent_object_id = c.object_id
@@ -254,6 +271,8 @@ public sealed class SchemaDiscoveryService
             INNER JOIN sys.columns c ON c.object_id = t.object_id
             INNER JOIN sys.types ty ON ty.user_type_id = c.user_type_id
             LEFT JOIN sys.default_constraints dc ON dc.parent_object_id = c.object_id AND dc.parent_column_id = c.column_id
+            LEFT JOIN sys.identity_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+            LEFT JOIN sys.computed_columns cc ON cc.object_id = c.object_id AND cc.column_id = c.column_id
             WHERE s.name = @SchemaName
               AND t.name = @TableName
             ORDER BY c.column_id;
@@ -265,30 +284,58 @@ public sealed class SchemaDiscoveryService
         var columnIdOrdinal = reader.GetOrdinal("ColumnId");
         var columnNameOrdinal = reader.GetOrdinal("ColumnName");
         var dataTypeOrdinal = reader.GetOrdinal("DataType");
-        var defaultDefinitionOrdinal = reader.GetOrdinal("DefaultDefinition");
         var maxLengthOrdinal = reader.GetOrdinal("MaxLength");
+        var precisionValueOrdinal = reader.GetOrdinal("PrecisionValue");
+        var scaleValueOrdinal = reader.GetOrdinal("ScaleValue");
+        var columnCollationOrdinal = reader.GetOrdinal("ColumnCollation");
+        var isNullableOrdinal = reader.GetOrdinal("IsNullable");
+        var defaultDefinitionOrdinal = reader.GetOrdinal("DefaultDefinition");
+        var isIdentityOrdinal = reader.GetOrdinal("IsIdentity");
+        var identitySeedOrdinal = reader.GetOrdinal("IdentitySeed");
+        var identityIncrementOrdinal = reader.GetOrdinal("IdentityIncrement");
+        var isComputedOrdinal = reader.GetOrdinal("IsComputed");
+        var computedDefinitionOrdinal = reader.GetOrdinal("ComputedDefinition");
+        var isPrimaryKeyOrdinal = reader.GetOrdinal("IsPrimaryKey");
         var isIndexedOrdinal = reader.GetOrdinal("IsIndexed");
         var isForeignKeyOrdinal = reader.GetOrdinal("IsForeignKey");
-        var isNullableOrdinal = reader.GetOrdinal("IsNullable");
-        var isPrimaryKeyOrdinal = reader.GetOrdinal("IsPrimaryKey");
 
         while (await reader.ReadAsync(cancellationToken))
         {
             columns.Add(new SchemaColumnModel
             {
+                // Core Column Identity
+                Ordinal = reader.GetInt32(columnIdOrdinal),
+                Name = reader.GetString(columnNameOrdinal),
                 DataType = reader.GetString(dataTypeOrdinal),
-                DefaultValue = await reader.IsDBNullAsync(defaultDefinitionOrdinal, cancellationToken) ? null : reader.GetString(defaultDefinitionOrdinal),
-                IsIndexed = reader.GetBoolean(isIndexedOrdinal),
-                IsForeignKey = reader.GetBoolean(isForeignKeyOrdinal),
-                IsNullable = reader.GetBoolean(isNullableOrdinal),
-                IsPrimaryKey = reader.GetBoolean(isPrimaryKeyOrdinal),
-                Metadata = GetMetadata(reader, columnIdOrdinal, isPrimaryKeyOrdinal, isIndexedOrdinal),
+                SchemaName = schemaName,
+                TableName = tableName,
+
+                // Data Type Attributes
+                MaxLength = await reader.IsDBNullAsync(maxLengthOrdinal, cancellationToken) ? null : reader.GetInt16(maxLengthOrdinal),
+                PrecisionValue = reader.GetByte(precisionValueOrdinal),
+                ScaleValue = reader.GetByte(scaleValueOrdinal),
+                ColumnCollation = await reader.IsDBNullAsync(columnCollationOrdinal, cancellationToken) ? null : reader.GetString(columnCollationOrdinal),
                 LengthDisplay = GetLengthDisplay(reader, maxLengthOrdinal, dataTypeOrdinal),
                 LengthSortValue = GetLengthSortValue(reader, maxLengthOrdinal, dataTypeOrdinal),
-                Name = reader.GetString(columnNameOrdinal),
-                Ordinal = reader.GetInt32(columnIdOrdinal),
-                SchemaName = schemaName,
-                TableName = tableName
+
+                // Common Column Properties
+                IsNullable = reader.GetBoolean(isNullableOrdinal),
+                DefaultValue = await reader.IsDBNullAsync(defaultDefinitionOrdinal, cancellationToken) ? null : reader.GetString(defaultDefinitionOrdinal),
+
+                // Special Column Types
+                IsIdentity = reader.GetBoolean(isIdentityOrdinal),
+                IdentitySeed = await reader.IsDBNullAsync(identitySeedOrdinal, cancellationToken) ? null : reader.GetInt64(identitySeedOrdinal),
+                IdentityIncrement = await reader.IsDBNullAsync(identityIncrementOrdinal, cancellationToken) ? null : reader.GetInt64(identityIncrementOrdinal),
+                IsComputed = reader.GetBoolean(isComputedOrdinal),
+                ComputedDefinition = await reader.IsDBNullAsync(computedDefinitionOrdinal, cancellationToken) ? null : reader.GetString(computedDefinitionOrdinal),
+
+                // Keys and Indexes
+                IsPrimaryKey = reader.GetBoolean(isPrimaryKeyOrdinal),
+                IsIndexed = reader.GetBoolean(isIndexedOrdinal),
+                IsForeignKey = reader.GetBoolean(isForeignKeyOrdinal),
+
+                // Metadata
+                Metadata = GetMetadata(reader, columnIdOrdinal, isPrimaryKeyOrdinal, isIndexedOrdinal)
             });
         }
 

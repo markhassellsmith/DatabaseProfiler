@@ -82,27 +82,7 @@ public class IndexModel : PageModel
             return RedirectToPage("/Databases/Index");
         }
 
-        if (!HasSelectedTable(connection))
-        {
-            return RedirectToPage("/ObjectBrowser/Index", new { selectedDatabaseName = databaseName });
-        }
-
         return null;
-    }
-
-    private bool HasSelectedTable(ConnectionSessionModel? connection)
-    {
-        if (!string.IsNullOrWhiteSpace(SelectedTableSelectionValue)
-            || !string.IsNullOrWhiteSpace(SelectedTableSchemaName)
-            || !string.IsNullOrWhiteSpace(SelectedTableName))
-        {
-            return true;
-        }
-
-        return connection is not null
-            && string.Equals(connection.SelectedObjectKind, "Table", StringComparison.OrdinalIgnoreCase)
-            && !string.IsNullOrWhiteSpace(connection.SelectedObjectSchemaName)
-            && !string.IsNullOrWhiteSpace(connection.SelectedObjectName);
     }
 
     private async Task LoadPageModelAsync(CancellationToken cancellationToken)
@@ -123,16 +103,13 @@ public class IndexModel : PageModel
 
         if (string.IsNullOrWhiteSpace(SelectedTableSelectionValue)
             && string.IsNullOrWhiteSpace(SelectedTableSchemaName)
-            && string.IsNullOrWhiteSpace(SelectedTableName))
+            && string.IsNullOrWhiteSpace(SelectedTableName)
+            && string.Equals(connection.SelectedObjectKind, "Table", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(connection.SelectedObjectSchemaName)
+            && !string.IsNullOrWhiteSpace(connection.SelectedObjectName))
         {
-            ViewModel = new ProfilingViewModel
-            {
-                DatabaseName = SelectedDatabaseName,
-                ServerName = connection.ServerName
-            };
-            TableNames = new SelectList(Array.Empty<string>());
-            StatusMessage = "Select a table from Object Browser to load the profile.";
-            return;
+            SelectedTableSchemaName = connection.SelectedObjectSchemaName;
+            SelectedTableName = connection.SelectedObjectName;
         }
 
         ApplySelectedTableSelection();

@@ -118,6 +118,7 @@ public class DatabaseModel : PageModel
         }
 
         HttpContext.Session.ClearActiveReportJobId();
+
         return File(report.Content, report.ContentType, report.FileName);
     }
 

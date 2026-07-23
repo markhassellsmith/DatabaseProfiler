@@ -13,6 +13,14 @@
 *.VC.db
 *.VC.VC.opendb
 
+# Build artifacts that end up in root
+*.csproj.FileListAbsolute.txt
+staticwebassets.*.txt
+
+# Benchmark results
+BenchmarkDotNet.Artifacts/
+*.Benchmarks*-report*.md
+
 # Rider / ReSharper
 .idea/
 *.sln.iml

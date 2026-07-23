@@ -26,38 +26,20 @@
     </div>
 }
 
-<div class="row mb-4">
+<form method="post" class="row g-3 align-items-end mb-3">
     <div class="col-md-6">
-        @if (string.IsNullOrWhiteSpace(Model.ViewModel.SelectedTableDisplayName))
-        {
-            <div class="card card-body shadow-sm">
-                <div class="text-muted">Select a table from Object Browser to load profile data.</div>
-                <div class="mt-3">
-                    <a asp-page="/ObjectBrowser/Index"
-                       asp-route-SelectedDatabaseName="@Model.SelectedDatabaseName"
-                       class="btn btn-primary btn-sm">
-                        Go to Object Browser
-                    </a>
-                </div>
-            </div>
-        }
-        else
-        {
-            <form method="post" class="card card-body shadow-sm">
-                <div class="mb-3">
-                    <label asp-for="SelectedTableSelectionValue" class="form-label">Table</label>
-                    <select asp-for="SelectedTableSelectionValue" class="form-select" asp-items="Model.TableNames"></select>
-                </div>
-                <input type="hidden" asp-for="SelectedDatabaseName" />
-                <input type="hidden" asp-for="SelectedTableSchemaName" />
-                <input type="hidden" asp-for="SelectedTableName" />
-                <input type="hidden" asp-for="SortColumn" />
-                <input type="hidden" asp-for="SortDescending" />
-                <button type="submit" class="btn btn-primary">Refresh Profile</button>
-            </form>
-        }
+        <label asp-for="SelectedTableSelectionValue" class="form-label">Table</label>
+        <select asp-for="SelectedTableSelectionValue" class="form-select" asp-items="Model.TableNames"></select>
     </div>
-</div>
+    <div class="col-md-3">
+        <input type="hidden" asp-for="SelectedDatabaseName" />
+        <input type="hidden" asp-for="SelectedTableSchemaName" />
+        <input type="hidden" asp-for="SelectedTableName" />
+        <input type="hidden" asp-for="SortColumn" />
+        <input type="hidden" asp-for="SortDescending" />
+        <button type="submit" class="btn btn-primary">Refresh Profile</button>
+    </div>
+</form>
 
 @if (!string.IsNullOrWhiteSpace(Model.ViewModel.SelectedTableDisplayName))
 {
@@ -103,7 +85,7 @@
     <div class="card shadow-sm">
         <div class="card-header d-flex justify-content-between align-items-center">
             <span>Column Profiles for @Model.ViewModel.SelectedTableDisplayName</span>
-            <span class="text-muted small">CountDistinct, null counts, min/max, averages, standard deviation, and most frequent values</span>
+            <span class="text-muted small">Null counts, distinct values, min/average/max for numeric fields, and most frequent values</span>
         </div>
         <div class="profiling-table-scrollbar" aria-hidden="true">
             <div class="profiling-table-scrollbar-spacer"></div>
@@ -112,6 +94,7 @@
             <table class="table table-sm table-hover mb-0 align-middle profiling-results-grid">
                 <thead>
                     <tr>
+                        <th style="width: 30px;"></th>
                         <th>
                             <a asp-page="/Profiling/Index"
                                asp-route-SelectedDatabaseName="@Model.SelectedDatabaseName"
@@ -133,34 +116,175 @@
                             </a>
                         </th>
                         <th>Data Type</th>
-                        <th data-bs-toggle="tooltip" title="Number of null values in the column">Null Count</th>
-                        <th data-bs-toggle="tooltip" title="Null count divided by total rows">Null %</th>
-                        <th data-bs-toggle="tooltip" title="Distinct non-null values in the column">CountDistinct</th>
-                        <th data-bs-toggle="tooltip" title="Lowest non-null value">Min</th>
-                        <th data-bs-toggle="tooltip" title="Highest non-null value">Max</th>
-                        <th data-bs-toggle="tooltip" title="Average for numeric columns">Average</th>
-                        <th data-bs-toggle="tooltip" title="Standard deviation for numeric columns">StDev</th>
-                        <th data-bs-toggle="tooltip" title="Most common non-null value">Most Frequent</th>
-                        <th data-bs-toggle="tooltip" title="Occurrences of the most frequent value">Freq Count</th>
+                        <th data-bs-toggle="tooltip" title="Number of null values">Null Count</th>
+                        <th data-bs-toggle="tooltip" title="Percentage of null values">Null %</th>
+                        <th data-bs-toggle="tooltip" title="Distinct non-null values">Distinct</th>
+                        <th data-bs-toggle="tooltip" title="Percentage of distinct values">Distinct %</th>
+                        <th data-bs-toggle="tooltip" title="Minimum value (numeric fields)">Min</th>
+                        <th data-bs-toggle="tooltip" title="Average value (numeric non-ID fields)">Avg</th>
+                        <th data-bs-toggle="tooltip" title="Maximum value (numeric fields)">Max</th>
+                        <th data-bs-toggle="tooltip" title="Most common value">Most Frequent</th>
+                        <th data-bs-toggle="tooltip" title="Frequency count">Freq Count</th>
+                        <th data-bs-toggle="tooltip" title="Frequency percentage">Freq %</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var column in Model.ViewModel.Columns)
                     {
-                        <tr>
+                        var rowId = $"prof-{column.Ordinal}";
+                        var detailId = $"prof-detail-{column.Ordinal}";
+                        var hasExtendedProfile = !string.IsNullOrWhiteSpace(column.MinValue) ||
+                                                 !string.IsNullOrWhiteSpace(column.AverageValue) ||
+                                                 column.MinLength.HasValue ||
+                                                 column.MinDateValue.HasValue;
+                        // Check if column name suggests it's an ID field
+                        var isIdColumn = column.Name.EndsWith("ID", StringComparison.OrdinalIgnoreCase) ||
+                                        column.Name.EndsWith("_ID", StringComparison.OrdinalIgnoreCase) ||
+                                        column.Name.Equals("ID", StringComparison.OrdinalIgnoreCase);
+
+                        <tr id="@rowId">
+                            <td>
+                                @if (hasExtendedProfile)
+                                {
+                                    <button type="button" 
+                                            class="btn btn-sm btn-link p-0 text-decoration-none" 
+                                            data-bs-toggle="collapse" 
+                                            data-bs-target="#@detailId" 
+                                            aria-expanded="false" 
+                                            aria-controls="@detailId"
+                                            title="Show/Hide Extended Profile">
+                                        <svg width="16" height="16" fill="currentColor">
+                                            <path d="M5 7l3 3 3-3H5z"/>
+                                        </svg>
+                                    </button>
+                                }
+                            </td>
                             <td>@column.Ordinal</td>
                             <td>@column.Name</td>
                             <td>@column.DataType</td>
                             <td>@column.NullCount</td>
                             <td>@column.NullPercent</td>
                             <td>@column.CountDistinct</td>
+                            <td>@column.DistinctPercent</td>
                             <td>@column.MinValue</td>
+                            <td>@(isIdColumn && !string.IsNullOrWhiteSpace(column.MinValue) ? "N/A" : column.AverageValue)</td>
                             <td>@column.MaxValue</td>
-                            <td>@column.AverageValue</td>
-                            <td>@column.StandardDeviation</td>
                             <td>@column.MostFrequentValue</td>
                             <td>@column.MostFrequentCount</td>
+                            <td>@column.MostFrequentPercent</td>
                         </tr>
+                        @if (hasExtendedProfile)
+                        {
+                            <tr>
+                                <td colspan="14" class="p-0 border-0">
+                                    <div id="@detailId" class="collapse">
+                                        <div class="card card-body extended-column-info-panel m-2">
+                                            <h6 class="mb-2">Extended Profile Statistics</h6>
+                                            <div class="row g-3">
+                                                @if (!string.IsNullOrWhiteSpace(column.MinValue) || !string.IsNullOrWhiteSpace(column.MaxValue))
+                                                {
+                                                    <div class="col-md-12">
+                                                        <div class="card">
+                                                            <div class="card-header bg-primary text-white py-1 small">
+                                                                <strong>Numeric Statistics</strong>
+                                                            </div>
+                                                            <div class="card-body small">
+                                                                <div class="row g-2">
+                                                                    @if (!string.IsNullOrWhiteSpace(column.MinValue))
+                                                                    {
+                                                                        <div class="col-md-3"><strong>Min:</strong> @column.MinValue</div>
+                                                                    }
+                                                                    @if (!string.IsNullOrWhiteSpace(column.MaxValue))
+                                                                    {
+                                                                        <div class="col-md-3"><strong>Max:</strong> @column.MaxValue</div>
+                                                                    }
+                                                                    @if (!string.IsNullOrWhiteSpace(column.AverageValue))
+                                                                    {
+                                                                        <div class="col-md-3"><strong>Average:</strong> @column.AverageValue</div>
+                                                                    }
+                                                                    @if (!string.IsNullOrWhiteSpace(column.StandardDeviation))
+                                                                    {
+                                                                        <div class="col-md-3"><strong>Std Dev:</strong> @column.StandardDeviation</div>
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                }
+                                                @if (column.MinLength.HasValue || column.MaxLengthObserved.HasValue)
+                                                {
+                                                    <div class="col-md-12">
+                                                        <div class="card">
+                                                            <div class="card-header bg-success text-white py-1 small">
+                                                                <strong>Character Statistics</strong>
+                                                            </div>
+                                                            <div class="card-body small">
+                                                                <div class="row g-2">
+                                                                    @if (column.MinLength.HasValue)
+                                                                    {
+                                                                        <div class="col-md-3"><strong>Min Length:</strong> @column.MinLength</div>
+                                                                    }
+                                                                    @if (column.MaxLengthObserved.HasValue)
+                                                                    {
+                                                                        <div class="col-md-3"><strong>Max Length:</strong> @column.MaxLengthObserved</div>
+                                                                    }
+                                                                    @if (column.AverageLength.HasValue)
+                                                                    {
+                                                                        <div class="col-md-3"><strong>Avg Length:</strong> @column.AverageLength.Value.ToString("0.##")</div>
+                                                                    }
+                                                                    @if (column.EmptyStringCount.HasValue && column.EmptyStringCount.Value > 0)
+                                                                    {
+                                                                        <div class="col-md-3"><strong>Empty Strings:</strong> @column.EmptyStringCount</div>
+                                                                    }
+                                                                    @if (column.WhitespaceOnlyCount.HasValue && column.WhitespaceOnlyCount.Value > 0)
+                                                                    {
+                                                                        <div class="col-md-3"><strong>Whitespace Only:</strong> @column.WhitespaceOnlyCount</div>
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                }
+                                                @if (column.MinDateValue.HasValue || column.MaxDateValue.HasValue)
+                                                {
+                                                    <div class="col-md-12">
+                                                        <div class="card">
+                                                            <div class="card-header bg-info text-white py-1 small">
+                                                                <strong>Date/Time Statistics</strong>
+                                                            </div>
+                                                            <div class="card-body small">
+                                                                <div class="row g-2">
+                                                                    @if (column.MinDateValue.HasValue)
+                                                                    {
+                                                                        <div class="col-md-4"><strong>Min Date:</strong> @column.MinDateValue.Value.ToString("yyyy-MM-dd HH:mm:ss")</div>
+                                                                    }
+                                                                    @if (column.MaxDateValue.HasValue)
+                                                                    {
+                                                                        <div class="col-md-4"><strong>Max Date:</strong> @column.MaxDateValue.Value.ToString("yyyy-MM-dd HH:mm:ss")</div>
+                                                                    }
+                                                                    @if (column.DateRangeDays.HasValue)
+                                                                    {
+                                                                        <div class="col-md-4"><strong>Range (days):</strong> @column.DateRangeDays</div>
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(column.ProfileNote))
+                                                {
+                                                    <div class="col-12">
+                                                        <div class="alert alert-warning py-1 mb-0 small">
+                                                            <strong>Note:</strong> @column.ProfileNote
+                                                        </div>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
                     }
                 </tbody>
             </table>

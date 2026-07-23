@@ -1,4 +1,3 @@
-USE IRIS_Dev;
 
 CREATE OR ALTER PROCEDURE dbo.usp_ProfileTable
 (

@@ -70,6 +70,8 @@ public class IndexModel : PageModel
         SelectedDatabaseName ??= connection.SelectedDatabaseName;
 
         if (string.IsNullOrWhiteSpace(SelectedTableSelectionValue)
+            && string.IsNullOrWhiteSpace(SelectedTableSchemaName)
+            && string.IsNullOrWhiteSpace(SelectedTableName)
             && string.Equals(connection.SelectedObjectKind, "Table", StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrWhiteSpace(connection.SelectedObjectSchemaName)
             && !string.IsNullOrWhiteSpace(connection.SelectedObjectName))

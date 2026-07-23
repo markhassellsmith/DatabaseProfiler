@@ -50,6 +50,7 @@
         <table class="table table-sm mb-0 align-middle">
             <thead>
                 <tr>
+                    <th style="width: 30px;"></th>
                     <th>
                         <a asp-page="/ColumnBrowser/Index"
                            asp-route-SelectedDatabaseName="@Model.SelectedDatabaseName"
@@ -73,7 +74,7 @@
                         </a>
                     </th>
                     <th>
-                        <a asp-page="/ColumnBrowser/Index"
+                       <a asp-page="/ColumnBrowser/Index"
                            asp-route-SelectedDatabaseName="@Model.SelectedDatabaseName"
                            asp-route-SelectedTableSchemaName="@Model.SelectedTableSchemaName"
                            asp-route-SelectedTableName="@Model.SelectedTableName"
@@ -94,7 +95,6 @@
                             Length @Model.GetSortIndicator("Length")
                         </a>
                     </th>
-                    <th>Default</th>
                     <th>Nullable</th>
                     <th>PK</th>
                     <th>Indexed</th>
@@ -104,23 +104,100 @@
             <tbody>
                 @foreach (var column in Model.ViewModel.Columns)
                 {
-                    <tr class="@(column.IsPrimaryKey ? "fw-bold" : string.Empty)">
+                    var rowId = $"col-{column.Ordinal}";
+                    var detailId = $"detail-{column.Ordinal}";
+                    var hasExtendedInfo = column.IsIdentity || column.IsComputed || 
+                                          !string.IsNullOrWhiteSpace(column.DefaultValue) ||
+                                          !string.IsNullOrWhiteSpace(column.ColumnCollation) ||
+                                          (column.PrecisionValue.HasValue && column.PrecisionValue.Value > 0);
+
+                    <tr id="@rowId" class="@(column.IsPrimaryKey ? "fw-bold" : string.Empty)">
+                        <td>
+                            @if (hasExtendedInfo)
+                            {
+                                <button type="button" 
+                                        class="btn btn-sm btn-link p-0 text-decoration-none" 
+                                        data-bs-toggle="collapse" 
+                                        data-bs-target="#@detailId" 
+                                        aria-expanded="false" 
+                                        aria-controls="@detailId"
+                                        title="Show/Hide Details">
+                                    <svg width="16" height="16" fill="currentColor">
+                                        <path d="M5 7l3 3 3-3H5z"/>
+                                    </svg>
+                                </button>
+                            }
+                        </td>
                         <td>@column.Ordinal</td>
                         <td>
                             @column.Name
-                            @if (column.IsPrimaryKey)
+                            @if (column.IsIdentity)
                             {
-                                <span class="text-muted">(primary key)</span>
+                                <span class="badge bg-info text-dark ms-1">Identity</span>
+                            }
+                            @if (column.IsComputed)
+                            {
+                                <span class="badge bg-warning text-dark ms-1">Computed</span>
                             }
                         </td>
                         <td>@column.DataType</td>
                         <td>@column.LengthDisplay</td>
-                        <td>@column.DefaultValue</td>
                         <td>@(column.IsNullable ? "Yes" : "No")</td>
                         <td>@(column.IsPrimaryKey ? "Yes" : "No")</td>
                         <td>@(column.IsIndexed ? "Yes" : "No")</td>
                         <td>@(column.IsForeignKey ? "Yes" : "No")</td>
                     </tr>
+                    @if (hasExtendedInfo)
+                    {
+                        <tr>
+                            <td colspan="9" class="p-0 border-0">
+                                <div id="@detailId" class="collapse">
+                                    <div class="card card-body extended-column-info-panel m-2">
+                                        <h6 class="mb-2">Extended Column Information</h6>
+                                        <div class="row g-2 small">
+                                            @if (column.PrecisionValue.HasValue && column.PrecisionValue.Value > 0)
+                                            {
+                                                <div class="col-md-6">
+                                                    <strong>Precision:</strong> @column.PrecisionValue
+                                                    @if (column.ScaleValue.HasValue)
+                                                    {
+                                                        <text>, <strong>Scale:</strong> @column.ScaleValue</text>
+                                                    }
+                                                </div>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(column.ColumnCollation))
+                                            {
+                                                <div class="col-md-6">
+                                                    <strong>Collation:</strong> @column.ColumnCollation
+                                                </div>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(column.DefaultValue))
+                                            {
+                                                <div class="col-12">
+                                                    <strong>Default Value:</strong> <code>@column.DefaultValue</code>
+                                                </div>
+                                            }
+                                            @if (column.IsIdentity)
+                                            {
+                                                <div class="col-md-6">
+                                                    <strong>Identity Seed:</strong> @(column.IdentitySeed?.ToString() ?? "N/A")
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <strong>Identity Increment:</strong> @(column.IdentityIncrement?.ToString() ?? "N/A")
+                                                </div>
+                                            }
+                                            @if (column.IsComputed && !string.IsNullOrWhiteSpace(column.ComputedDefinition))
+                                            {
+                                                <div class="col-12">
+                                                    <strong>Computed Definition:</strong> <code>@column.ComputedDefinition</code>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>

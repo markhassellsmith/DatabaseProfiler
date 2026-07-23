@@ -45,15 +45,12 @@ public sealed class SchemaBrowserViewModel
 
 public sealed class SchemaColumnModel
 {
-    public bool IsForeignKey { get; set; }
-
-    public bool IsIndexed { get; set; }
-
-    public bool IsPrimaryKey { get; set; }
+    // Core Column Identity
+    public int Ordinal { get; set; }
 
     public string Name { get; set; } = string.Empty;
 
-    public int Ordinal { get; set; }
+    public string DataType { get; set; } = string.Empty;
 
     public string QualifiedName => string.IsNullOrWhiteSpace(TableName) ? Name : $"{TableName}.{Name}";
 
@@ -61,15 +58,42 @@ public sealed class SchemaColumnModel
 
     public string? TableName { get; set; }
 
-    public string DataType { get; set; } = string.Empty;
+    // Data Type Attributes
+    public int? MaxLength { get; set; }
+
+    public int? PrecisionValue { get; set; }
+
+    public int? ScaleValue { get; set; }
+
+    public string? ColumnCollation { get; set; }
 
     public string LengthDisplay { get; set; } = string.Empty;
 
     public int? LengthSortValue { get; set; }
 
+    // Common Column Properties
+    public bool IsNullable { get; set; }
+
     public string? DefaultValue { get; set; }
 
-    public string Metadata { get; set; } = string.Empty;
+    // Special Column Types
+    public bool IsIdentity { get; set; }
 
-    public bool IsNullable { get; set; }
+    public long? IdentitySeed { get; set; }
+
+    public long? IdentityIncrement { get; set; }
+
+    public bool IsComputed { get; set; }
+
+    public string? ComputedDefinition { get; set; }
+
+    // Keys and Indexes
+    public bool IsPrimaryKey { get; set; }
+
+    public bool IsIndexed { get; set; }
+
+    public bool IsForeignKey { get; set; }
+
+    // Metadata
+    public string Metadata { get; set; } = string.Empty;
 }

@@ -51,7 +51,9 @@
                                 : string.Empty)
             </p>
             <div class="d-flex flex-wrap gap-2">
-                <a class="btn btn-success @(Model.ReportProgress.IsComplete ? string.Empty : "d-none")" data-report-download href="@Url.Page("/Reports/Database", "Download", new { jobId = Model.ReportJobId })">Download Excel report</a>
+                <a class="btn btn-success @(Model.ReportProgress.IsComplete ? string.Empty : "d-none")" 
+                   data-report-download 
+                   href="@Url.Page("/Reports/Database", "Download", new { jobId = Model.ReportJobId })">Download Excel report</a>
                 <span class="text-muted small align-self-center" data-report-live-note></span>
             </div>
             @if (Model.ReportProgress.IsFailed)

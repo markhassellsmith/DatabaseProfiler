@@ -269,6 +269,28 @@ body {
     scroll-margin-top: 1rem;
 }
 
+.extended-column-info-panel {
+    background-color: var(--dp-surface-secondary);
+    color: var(--dp-surface-fg);
+    border-color: var(--dp-surface-secondary-border);
+}
+
+.extended-column-info-panel h6 {
+    color: var(--dp-surface-fg);
+}
+
+.extended-column-info-panel strong {
+    color: var(--dp-surface-fg);
+    font-weight: 600;
+}
+
+.extended-column-info-panel code {
+    background-color: var(--dp-surface-bg);
+    color: var(--dp-surface-fg);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+}
+
 .container.profiling-page {
     max-width: 100%;
     width: 100%;

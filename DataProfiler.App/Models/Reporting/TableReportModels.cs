@@ -52,39 +52,90 @@ public sealed class TableReportTableModel
 
 public sealed class TableReportColumnModel
 {
-    public string AverageValue { get; init; } = string.Empty;
+    // Core Column Identity
+    public int Ordinal { get; init; }
 
-    public bool IsForeignKey { get; init; }
+    public string Name { get; init; } = string.Empty;
+
+    public string DataType { get; init; } = string.Empty;
+
+    // Data Type Attributes
+    public string LengthDisplay { get; init; } = string.Empty;
+
+    public int? PrecisionValue { get; init; }
+
+    public int? ScaleValue { get; init; }
+
+    public string? ColumnCollation { get; init; }
+
+    // Common Column Properties
+    public bool IsNullable { get; init; }
+
+    public string? DefaultValue { get; init; }
+
+    // Special Column Types
+    public bool IsIdentity { get; init; }
+
+    public long? IdentitySeed { get; init; }
+
+    public long? IdentityIncrement { get; init; }
+
+    public bool IsComputed { get; init; }
+
+    public string? ComputedDefinition { get; init; }
+
+    // Keys and Indexes
+    public bool IsPrimaryKey { get; init; }
 
     public bool IsIndexed { get; init; }
 
-    public bool IsNullable { get; init; }
+    public bool IsForeignKey { get; init; }
 
-    public bool IsPrimaryKey { get; init; }
-
-    public string LengthDisplay { get; init; } = string.Empty;
-
-    public string MaxValue { get; init; } = string.Empty;
-
-    public string MinValue { get; init; } = string.Empty;
-
-    public string MostFrequentCount { get; init; } = string.Empty;
-
-    public string MostFrequentValue { get; init; } = string.Empty;
-
-    public string Name { get; init; } = string.Empty;
+    // Common Profile Statistics
+    public long? RowsProfiled { get; init; }
 
     public string NullCount { get; init; } = string.Empty;
 
     public string NullPercent { get; init; } = string.Empty;
 
-    public int Ordinal { get; init; }
+    public string CountDistinct { get; init; } = string.Empty;
+
+    public string DistinctPercent { get; init; } = string.Empty;
+
+    // Frequency Analysis
+    public string MostFrequentValue { get; init; } = string.Empty;
+
+    public string MostFrequentCount { get; init; } = string.Empty;
+
+    public string MostFrequentPercent { get; init; } = string.Empty;
+
+    // Numeric Profile Statistics
+    public string MinValue { get; init; } = string.Empty;
+
+    public string MaxValue { get; init; } = string.Empty;
+
+    public string AverageValue { get; init; } = string.Empty;
 
     public string StandardDeviation { get; init; } = string.Empty;
 
-    public string DataType { get; init; } = string.Empty;
+    // Character Profile Statistics
+    public int? MinLength { get; init; }
 
-    public string CountDistinct { get; init; } = string.Empty;
+    public int? MaxLengthObserved { get; init; }
 
-    public string? DefaultValue { get; init; }
+    public decimal? AverageLength { get; init; }
+
+    public long? EmptyStringCount { get; init; }
+
+    public long? WhitespaceOnlyCount { get; init; }
+
+    // Date/Time Profile Statistics
+    public DateTime? MinDateValue { get; init; }
+
+    public DateTime? MaxDateValue { get; init; }
+
+    public int? DateRangeDays { get; init; }
+
+    // Profile Metadata
+    public string? ProfileNote { get; init; }
 }
