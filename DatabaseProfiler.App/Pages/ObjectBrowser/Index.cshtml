@@ -154,4 +154,46 @@
             </div>
         </div>
     </div>
+
+    <div class="accordion-item schema-browser-panel" id="schema-user-defined-types-panel">
+        <h2 class="accordion-header" id="schema-user-defined-types-heading">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#schema-user-defined-types-collapse" aria-expanded="false" aria-controls="schema-user-defined-types-collapse">
+                User-Defined Types (@Model.ViewModel.UserDefinedTypeCount)
+            </button>
+        </h2>
+        <div id="schema-user-defined-types-collapse" class="accordion-collapse collapse" aria-labelledby="schema-user-defined-types-heading" data-bs-parent="#schema-browser-accordion">
+            <div class="accordion-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th>Schema</th>
+                                <th>Type Name</th>
+                                <th>Base Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var userDefinedType in Model.ViewModel.UserDefinedTypes)
+                            {
+                                <tr>
+                                    <td>@userDefinedType.SchemaName</td>
+                                    <td>
+                                        <a asp-page="/ScriptBrowser/Index"
+                                           asp-route-SelectedDatabaseName="@Model.ViewModel.DatabaseName"
+                                           asp-route-SelectedObjectKind="UserDefinedType"
+                                           asp-route-SelectedObjectSchemaName="@userDefinedType.SchemaName"
+                                           asp-route-SelectedObjectName="@userDefinedType.Name"
+                                           class="schema-browser-object-link">
+                                            @userDefinedType.Name
+                                        </a>
+                                    </td>
+                                    <td>@userDefinedType.BaseTypeDisplay</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>

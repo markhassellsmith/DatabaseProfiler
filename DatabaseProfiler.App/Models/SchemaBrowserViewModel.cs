@@ -41,6 +41,10 @@ public sealed class SchemaBrowserViewModel
     public IReadOnlyList<SchemaObjectEntryModel> Views { get; set; } = [];
 
     public int ViewCount { get; set; }
+
+    public IReadOnlyList<UserDefinedTypeModel> UserDefinedTypes { get; set; } = [];
+
+    public int UserDefinedTypeCount { get; set; }
 }
 
 public sealed class SchemaColumnModel
