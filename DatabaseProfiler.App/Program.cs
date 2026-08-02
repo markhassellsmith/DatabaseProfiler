@@ -22,6 +22,7 @@ builder.Services.AddSingleton<DatabaseProfiler.App.Services.Discovery.SchemaDisc
 builder.Services.Configure<DatabaseProfiler.App.Services.Profiling.TableProfilingPolicyOptions>(builder.Configuration.GetSection("TableReports:Profiling"));
 builder.Services.AddSingleton<DatabaseProfiler.App.Services.Profiling.TableProfilingService>();
 builder.Services.AddSingleton<DatabaseProfiler.App.Services.Reporting.TableReportService>();
+builder.Services.AddSingleton<DatabaseProfiler.App.Services.Reporting.RelationshipReportService>();
 builder.Services.AddSingleton<DatabaseProfiler.App.Services.Reporting.TableReportJobStore>();
 builder.Services.AddSingleton<ITableReportJobQueue, TableReportJobQueue>();
 builder.Services.AddHostedService<TableReportBackgroundService>();
