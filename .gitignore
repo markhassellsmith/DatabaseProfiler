@@ -50,19 +50,19 @@ publish/
 Thumbs.db
 
 # ===========================================
-# DataProfiler Application-Specific Ignores
+# DatabaseProfiler Application-Specific Ignores
 # ===========================================
 
 # Generated table report job files (runtime metadata)
-DataProfiler.App/App_Data/TableReports/jobs/*.json
+DatabaseProfiler.App/App_Data/TableReports/jobs/*.json
 
 # Generated table report artifacts (Excel files)  
-DataProfiler.App/App_Data/TableReports/artifacts/*.xlsx
+DatabaseProfiler.App/App_Data/TableReports/artifacts/*.xlsx
 
 # Data Protection Keys (contains sensitive encryption keys)
-DataProfiler.App/App_Data/DataProtectionKeys/*.xml
+DatabaseProfiler.App/App_Data/DataProtectionKeys/*.xml
 
 # Keep directory structure
-!DataProfiler.App/App_Data/TableReports/jobs/.gitkeep
-!DataProfiler.App/App_Data/TableReports/artifacts/.gitkeep
-!DataProfiler.App/App_Data/DataProtectionKeys/.gitkeep
+!DatabaseProfiler.App/App_Data/TableReports/jobs/.gitkeep
+!DatabaseProfiler.App/App_Data/TableReports/artifacts/.gitkeep
+!DatabaseProfiler.App/App_Data/DataProtectionKeys/.gitkeep
