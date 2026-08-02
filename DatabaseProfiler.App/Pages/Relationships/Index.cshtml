@@ -1,0 +1,418 @@
+@page
+@model DatabaseProfiler.App.Pages.Relationships.IndexModel
+@{
+    ViewData["Title"] = "Relationships";
+}
+
+<h1>Relationships</h1>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-info" role="alert">
+        @Model.StatusMessage
+    </div>
+}
+
+@if (Model.ViewModel != null)
+{
+    var explicitRelationships = Model.ViewModel.Relationships.Where(r => r.Type == DatabaseProfiler.App.Models.RelationshipType.Explicit).ToList();
+    var suggestedRelationships = Model.ViewModel.Relationships.Where(r => r.Type == DatabaseProfiler.App.Models.RelationshipType.Suggested).ToList();
+
+    <div class="row mb-3">
+        <div class="col-md-10">
+            <h5 class="mb-0">Summary</h5>
+        </div>
+        <div class="col-md-2 text-end">
+            <form method="post" asp-page-handler="Export" class="d-inline">
+                <button type="submit" class="btn btn-success btn-sm">
+                    <i class="bi bi-file-earmark-excel"></i> Export to Excel
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Summary</h5>
+                    <div class="row">
+                        <div class="col-md-2">
+                            <strong>Total Relationships:</strong> @Model.ViewModel.RelationshipCount
+                        </div>
+                        <div class="col-md-2">
+                            <strong>Explicit FKs:</strong> <span class="badge bg-primary">@Model.ViewModel.ExplicitCount</span>
+                        </div>
+                        <div class="col-md-2">
+                            <strong>Suggested:</strong> <span class="badge bg-info">@Model.ViewModel.SuggestedCount</span>
+                        </div>
+                        <div class="col-md-2">
+                            <strong>High Confidence:</strong> <span class="badge bg-success">@Model.ViewModel.HighConfidenceCount</span>
+                        </div>
+                        <div class="col-md-2">
+                            <strong>Parent Tables:</strong> @Model.ViewModel.ParentTableCount
+                        </div>
+                        <div class="col-md-2">
+                            <strong>Child Tables:</strong> @Model.ViewModel.ChildTableCount
+                        </div>
+                    </div>
+                    @if (Model.ViewModel.NotIndexedCount > 0 || Model.ViewModel.DisabledCount > 0 || Model.ViewModel.UntrustedCount > 0)
+                    {
+                        <hr />
+                        <div class="row">
+                            @if (Model.ViewModel.NotIndexedCount > 0)
+                            {
+                                <div class="col-md-4">
+                                    <span class="text-warning">⚠ Not Indexed: @Model.ViewModel.NotIndexedCount</span>
+                                </div>
+                            }
+                            @if (Model.ViewModel.DisabledCount > 0)
+                            {
+                                <div class="col-md-4">
+                                    <span class="text-danger">🔴 Disabled: @Model.ViewModel.DisabledCount</span>
+                                </div>
+                            }
+                            @if (Model.ViewModel.UntrustedCount > 0)
+                            {
+                                <div class="col-md-4">
+                                    <span class="text-warning">⚠ Untrusted: @Model.ViewModel.UntrustedCount</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <input type="text" id="relationshipSearch" class="form-control form-control-sm" placeholder="Search by table name..." />
+        </div>
+    </div>
+
+    @* Explicit Foreign Key Relationships *@
+    @if (explicitRelationships.Any())
+    {
+        <h3 class="mt-4 mb-3">Explicit Foreign Key Relationships (@explicitRelationships.Count)</h3>
+
+        <!-- Top scrollbar for explicit -->
+        <div class="table-scroll-top" id="scrollTopExplicit">
+            <div id="scrollTopExplicitInner"></div>
+        </div>
+
+        <div class="table-responsive" id="tableContainerExplicit">
+            <table class="table table-hover table-sm compact-table" id="explicitTable">
+                <thead>
+                    <tr>
+                        <th>Parent Table</th>
+                        <th>Parent Column</th>
+                        <th></th>
+                        <th>Child Table</th>
+                        <th>Child Column</th>
+                        <th>Cardinality</th>
+                        <th>Constraint Name</th>
+                        <th>Delete Action</th>
+                        <th>Update Action</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var relationship in explicitRelationships)
+                    {
+                        var statusClass = "";
+                        var statusIcon = "";
+                        var statusText = "";
+
+                        if (!relationship.IsEnabled)
+                        {
+                            statusClass = "text-danger";
+                            statusIcon = "🔴";
+                            statusText = "Disabled";
+                        }
+                        else if (!relationship.IsTrusted)
+                        {
+                            statusClass = "text-warning";
+                            statusIcon = "⚠";
+                            statusText = "Untrusted";
+                        }
+                        else if (!relationship.IsIndexed)
+                        {
+                            statusClass = "text-warning";
+                            statusIcon = "⚠";
+                            statusText = "Not Indexed";
+                        }
+                        else
+                        {
+                            statusClass = "text-success";
+                            statusIcon = "✓";
+                            statusText = "OK";
+                        }
+
+                        <tr>
+                            <td>@relationship.ParentTableDisplay</td>
+                            <td><code>@relationship.ParentColumn</code></td>
+                            <td class="text-center">←</td>
+                            <td>@relationship.ChildTableDisplay</td>
+                            <td><code>@relationship.ChildColumn</code></td>
+                            <td>
+                                @if (relationship.Cardinality?.Contains("One-to-One") == true)
+                                {
+                                    <span class="badge bg-info">1:1</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-primary">N:1</span>
+                                }
+                            </td>
+                            <td><small>@(relationship.ConstraintName ?? "-")</small></td>
+                            <td>
+                                @if (relationship.DeleteAction?.Contains("CASCADE") == true)
+                                {
+                                    <span class="badge bg-danger">CASCADE</span>
+                                }
+                                else if (!string.IsNullOrEmpty(relationship.DeleteAction))
+                                {
+                                    <span class="text-muted">@relationship.DeleteAction</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            </td>
+                            <td>
+                                @if (relationship.UpdateAction?.Contains("CASCADE") == true)
+                                {
+                                    <span class="badge bg-warning">CASCADE</span>
+                                }
+                                else if (!string.IsNullOrEmpty(relationship.UpdateAction))
+                                {
+                                    <span class="text-muted">@relationship.UpdateAction</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            </td>
+                            <td class="@statusClass">
+                                @statusIcon @statusText
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @* Suggested Relationships *@
+    @if (suggestedRelationships.Any())
+    {
+        <h3 class="mt-5 mb-3">
+            Suggested Relationships (@suggestedRelationships.Count)
+            <small class="text-muted">- Based on naming patterns</small>
+        </h3>
+
+        <!-- Help Section -->
+        <div class="alert alert-info mb-3" role="alert">
+            <div class="d-flex align-items-start">
+                <div class="flex-shrink-0 me-2">
+                    <strong>ℹ️ Confidence Levels:</strong>
+                </div>
+                <div class="flex-grow-1">
+                    <ul class="mb-0 small">
+                        <li>
+                            <span class="badge bg-success">💡 High</span>
+                            <strong>Exact table name match</strong> - e.g., <code>CustomerID</code> → <code>Customer.ID</code> or <code>Customer.CustomerID</code>
+                        </li>
+                        <li class="mt-1">
+                            <span class="badge bg-warning">💡 Medium</span>
+                            <strong>Partial name match</strong> - e.g., column contains table name and ends with <code>ID</code>
+                        </li>
+                    </ul>
+                    <small class="text-muted">All suggestions match data types and exclude existing foreign keys.</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top scrollbar for suggested -->
+        <div class="table-scroll-top" id="scrollTopSuggested">
+            <div id="scrollTopSuggestedInner"></div>
+        </div>
+
+        <div class="table-responsive" id="tableContainerSuggested">
+            <table class="table table-hover table-sm compact-table suggested-table" id="suggestedTable">
+                <thead>
+                    <tr>
+                        <th>Parent Table</th>
+                        <th>Parent Column</th>
+                        <th></th>
+                        <th>Child Table</th>
+                        <th>Child Column</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var relationship in suggestedRelationships)
+                    {
+                        <tr>
+                            <td>@relationship.ParentTableDisplay</td>
+                            <td><code>@relationship.ParentColumn</code></td>
+                            <td class="text-center">←</td>
+                            <td>@relationship.ChildTableDisplay</td>
+                            <td><code>@relationship.ChildColumn</code></td>
+                            <td>
+                                @if (relationship.Confidence == DatabaseProfiler.App.Models.ConfidenceLevel.High)
+                                {
+                                    <span class="badge bg-success" 
+                                          data-bs-toggle="tooltip" 
+                                          title="Exact table name match (e.g., CustomerID → Customer.ID)">
+                                        💡 High
+                                    </span>
+                                }
+                                else if (relationship.Confidence == DatabaseProfiler.App.Models.ConfidenceLevel.Medium)
+                                {
+                                    <span class="badge bg-warning" 
+                                          data-bs-toggle="tooltip" 
+                                          title="Partial name match with ID suffix">
+                                        💡 Medium
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary" 
+                                          data-bs-toggle="tooltip" 
+                                          title="Generic ID pattern match">
+                                        💡 Low
+                                    </span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+else
+{
+    <p>No database selected. Please select a database from the home page.</p>
+}
+
+@section Scripts {
+    <style>
+        /* Compact table styling - smaller fonts and tighter spacing */
+        .compact-table {
+            font-size: 0.7rem;
+        }
+
+        .compact-table th,
+        .compact-table td {
+            padding: 0.15rem 0.3rem;
+            vertical-align: middle;
+        }
+
+        .compact-table th {
+            white-space: nowrap;
+            font-weight: 600;
+            font-size: 0.7rem;
+        }
+
+        .compact-table code {
+            font-size: 0.65rem;
+        }
+
+        .compact-table .badge {
+            font-size: 0.6rem;
+            padding: 0.1rem 0.3rem;
+        }
+
+        .compact-table small {
+            font-size: 0.65rem;
+        }
+
+        /* Suggested table gets a subtle background - theme-aware */
+        .suggested-table {
+            border: 1px solid var(--bs-border-color);
+        }
+
+        /* Light theme: light blue tint */
+        [data-bs-theme="light"] .suggested-table {
+            background-color: rgba(13, 202, 240, 0.05);
+        }
+
+        /* Dark theme: darker blue tint for better contrast */
+        [data-bs-theme="dark"] .suggested-table {
+            background-color: rgba(13, 110, 253, 0.15);
+        }
+
+        /* Top scrollbar */
+        .table-scroll-top {
+            overflow-x: auto;
+            overflow-y: hidden;
+            margin-bottom: 5px;
+        }
+
+        #scrollTopExplicitInner,
+        #scrollTopSuggestedInner {
+            height: 1px;
+        }
+    </style>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Bootstrap tooltips
+            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+            const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+
+            const searchInput = document.getElementById('relationshipSearch');
+
+            // Setup scrollbars and search for explicit table
+            setupTableScrollAndSearch('explicitTable', 'tableContainerExplicit', 'scrollTopExplicit', 'scrollTopExplicitInner', searchInput);
+
+            // Setup scrollbars and search for suggested table
+            setupTableScrollAndSearch('suggestedTable', 'tableContainerSuggested', 'scrollTopSuggested', 'scrollTopSuggestedInner', searchInput);
+        });
+
+        function setupTableScrollAndSearch(tableId, containerId, scrollTopId, scrollTopInnerId, searchInput) {
+            const table = document.getElementById(tableId);
+            const tableContainer = document.getElementById(containerId);
+            const scrollTop = document.getElementById(scrollTopId);
+            const scrollTopInner = document.getElementById(scrollTopInnerId);
+
+            if (!table || !tableContainer || !scrollTop || !scrollTopInner) {
+                return; // Table doesn't exist (e.g., no suggested relationships)
+            }
+
+            // Sync scrollbar widths
+            scrollTopInner.style.width = tableContainer.scrollWidth + 'px';
+
+            // Sync scroll positions
+            scrollTop.addEventListener('scroll', function() {
+                tableContainer.scrollLeft = scrollTop.scrollLeft;
+            });
+
+            tableContainer.addEventListener('scroll', function() {
+                scrollTop.scrollLeft = tableContainer.scrollLeft;
+            });
+
+            // Update top scrollbar width when window resizes
+            window.addEventListener('resize', function() {
+                scrollTopInner.style.width = tableContainer.scrollWidth + 'px';
+            });
+
+            // Search functionality
+            if (searchInput) {
+                searchInput.addEventListener('keyup', function() {
+                    const filter = this.value.toLowerCase();
+                    const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+
+                    for (let i = 0; i < rows.length; i++) {
+                        const row = rows[i];
+                        const text = row.textContent.toLowerCase();
+                        row.style.display = text.includes(filter) ? '' : 'none';
+                    }
+                });
+            }
+        }
+    </script>
+}

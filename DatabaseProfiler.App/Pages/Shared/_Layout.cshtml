@@ -27,6 +27,7 @@
             var currentPath = Context.Request.Path.Value ?? string.Empty;
             var isOnDatabasesPage = currentPath.StartsWith("/Databases", StringComparison.OrdinalIgnoreCase);
             var isOnObjectBrowserPage = currentPath.StartsWith("/ObjectBrowser", StringComparison.OrdinalIgnoreCase);
+            var isOnRelationshipsPage = currentPath.StartsWith("/Relationships", StringComparison.OrdinalIgnoreCase);
             var isOnColumnBrowserPage = currentPath.StartsWith("/ColumnBrowser", StringComparison.OrdinalIgnoreCase);
             var isOnProfilingPage = currentPath.StartsWith("/Profiling", StringComparison.OrdinalIgnoreCase);
             var isOnScriptBrowserPage = currentPath.StartsWith("/ScriptBrowser", StringComparison.OrdinalIgnoreCase);
@@ -48,6 +49,7 @@
                     || string.Equals(selectedObjectKind, "StoredProcedure", StringComparison.OrdinalIgnoreCase));
             var showDatabases = hasDatabase || isOnDatabasesPage;
             var showObjectBrowser = hasDatabase || isOnObjectBrowserPage;
+            var showRelationships = hasDatabase || isOnRelationshipsPage;
             var showColumnBrowser = isTableSelected || isOnColumnBrowserPage;
             var showProfiling = isTableSelected || isOnProfilingPage;
             var showScriptBrowser = isScriptObjectSelected || isOnScriptBrowserPage;
@@ -78,6 +80,12 @@
                         {
                             <li class="nav-item">
                                 <a class="nav-link text-dark" asp-area="" asp-page="/ObjectBrowser/Index">Object Browser</a>
+                            </li>
+                        }
+                        @if (showRelationships)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-area="" asp-page="/Relationships/Index">Relationships</a>
                             </li>
                         }
                         @if (showColumnBrowser)
