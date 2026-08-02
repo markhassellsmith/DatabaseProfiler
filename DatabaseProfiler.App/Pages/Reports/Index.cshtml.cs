@@ -43,6 +43,12 @@ public class IndexModel : PageModel
                 "Open relationships report",
                 "/Relationships/Index"),
             new ReportChoiceViewModel(
+                "Entity-Relationship Diagram",
+                "Generate entity-relationship diagrams for Visio import or Mermaid markdown viewers. Export selected tables with relationships in SQL DDL or Mermaid format.",
+                "SQL DDL | Mermaid",
+                "Open diagram export",
+                "/ERD/Index"),
+            new ReportChoiceViewModel(
                 "Script Report",
                 "Generate plain text scripts for views, functions, and stored procedures.",
                 "Text",

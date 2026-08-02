@@ -23,6 +23,7 @@ builder.Services.Configure<DatabaseProfiler.App.Services.Profiling.TableProfilin
 builder.Services.AddSingleton<DatabaseProfiler.App.Services.Profiling.TableProfilingService>();
 builder.Services.AddSingleton<DatabaseProfiler.App.Services.Reporting.TableReportService>();
 builder.Services.AddSingleton<DatabaseProfiler.App.Services.Reporting.RelationshipReportService>();
+builder.Services.AddSingleton<DatabaseProfiler.App.Services.Reporting.ErdGenerationService>();
 builder.Services.AddSingleton<DatabaseProfiler.App.Services.Reporting.TableReportJobStore>();
 builder.Services.AddSingleton<ITableReportJobQueue, TableReportJobQueue>();
 builder.Services.AddHostedService<TableReportBackgroundService>();
