@@ -1,0 +1,165 @@
+@page
+@model DatabaseProfiler.App.Pages.Reports.DatabaseModel
+@{
+    ViewData["Title"] = "Database Report";
+}
+
+<h1>Database Report</h1>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-info" role="alert">@Model.StatusMessage</div>
+}
+
+@if (Model.ReportProgress is not null)
+{
+    <div class="card shadow-sm mb-3"
+         data-report-progress
+         data-job-id="@Model.ReportJobId"
+         data-status-url="@Url.Page("/Reports/Database", "Status", new { jobId = Model.ReportJobId })"
+         data-download-url="@Url.Page("/Reports/Database", "Download", new { jobId = Model.ReportJobId })"
+         data-estimated-duration-seconds="@Model.ReportProgress.EstimatedDurationSeconds"
+         data-started-on-utc="@Model.ReportProgress.StartedOnUtc?.ToString("O")"
+         data-current-stage-started-on-utc="@Model.ReportProgress.CurrentStageStartedOnUtc?.ToString("O")"
+         data-running="@(Model.ReportProgress.IsRunning ? "true" : "false")">
+        <div class="card-header d-flex justify-content-between align-items-center gap-2">
+            <span>Database report generation progress</span>
+            <span class="badge @(Model.ReportProgress.IsFailed ? "bg-danger" : Model.ReportProgress.IsComplete ? "bg-success" : "bg-primary")">@Model.ReportProgress.Stage</span>
+        </div>
+        <div class="card-body">
+            <div class="progress mb-3" style="height: 1.25rem;">
+                <div class="progress-bar" role="progressbar" style="width: @Model.ReportProgress.PercentComplete%;" aria-valuenow="@Model.ReportProgress.PercentComplete" aria-valuemin="0" aria-valuemax="100">
+                    @Model.ReportProgress.PercentComplete%
+                </div>
+            </div>
+            <p class="mb-2" data-report-status-text>@Model.ReportProgress.Message</p>
+            <p class="mb-2 text-muted small" data-report-diagnostics></p>
+            <p class="mb-2 text-muted" data-report-estimate-text>
+                @(Model.ReportProgress.IsRunning && Model.Estimate is not null
+                    ? $"Estimated time remaining: {Model.Estimate.DisplayText.Replace("Estimated time: about ", string.Empty)}"
+                    : Model.ReportProgress.IsComplete
+                        ? "Report generation completed."
+                        : Model.ReportProgress.IsFailed
+                            ? "Report generation failed."
+                            : Model.Estimate is not null
+                                ? Model.Estimate.DisplayText
+                                : string.Empty)
+            </p>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-success @(Model.ReportProgress.IsComplete ? string.Empty : "d-none")" 
+                   data-report-download 
+                   href="@Url.Page("/Reports/Database", "Download", new { jobId = Model.ReportJobId })">Download Excel report</a>
+                <span class="text-muted small align-self-center" data-report-live-note></span>
+            </div>
+            @if (Model.ReportProgress.IsFailed)
+            {
+                <div class="alert alert-danger mt-3 mb-0" role="alert">
+                    @Model.ReportProgress.Message
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<div class="card shadow-sm">
+    <div class="card-header">Selected database</div>
+    <div class="card-body">
+        <p class="mb-0 text-muted">Generate a Summary-only Excel report for the selected database.</p>
+        <form method="post" asp-page-handler="Generate" class="mt-3">
+            <button type="submit" class="btn btn-primary">Generate Excel report</button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const root = document.querySelector('[data-report-progress]');
+            if (!(root instanceof HTMLElement)) {
+                return;
+            }
+
+            const progressBar = root.querySelector('.progress-bar');
+            const downloadLink = root.querySelector('[data-report-download]');
+            const diagnosticsText = root.querySelector('[data-report-diagnostics]');
+            const estimateText = root.querySelector('[data-report-estimate-text]');
+            const liveNoteText = root.querySelector('[data-report-live-note]');
+            const statusText = root.querySelector('[data-report-status-text]');
+            const statusUrl = root.dataset.statusUrl;
+            const downloadUrl = root.dataset.downloadUrl;
+
+            if (!(progressBar instanceof HTMLElement) || !statusUrl || !downloadUrl || !statusText || !estimateText || !downloadLink) {
+                return;
+            }
+
+            const estimatedDurationSeconds = Number.parseInt(root.dataset.estimatedDurationSeconds ?? '0', 10);
+            const startedOnUtc = Date.parse(root.dataset.startedOnUtc ?? '');
+            const currentStageStartedOnUtc = Date.parse(root.dataset.currentStageStartedOnUtc ?? '');
+
+            const updateProgressView = (progress) => {
+                if (typeof progress.percentComplete === 'number') {
+                    const percent = Math.max(0, Math.min(100, progress.percentComplete));
+                    progressBar.style.width = `${percent}%`;
+                    progressBar.textContent = `${percent}%`;
+                    progressBar.setAttribute('aria-valuenow', percent.toString());
+                }
+
+                if (typeof progress.stage === 'string') {
+                    const badge = root.querySelector('.badge');
+                    if (badge instanceof HTMLElement) {
+                        badge.textContent = progress.stage;
+                    }
+                }
+
+                if (typeof progress.message === 'string') {
+                    statusText.textContent = progress.message;
+                }
+
+                if (progress.isComplete) {
+                    downloadLink.classList.remove('d-none');
+                    estimateText.textContent = 'Report generation completed.';
+                    liveNoteText.textContent = 'Your report is ready.';
+                    return;
+                }
+
+                if (progress.isFailed) {
+                    estimateText.textContent = 'Report generation failed.';
+                    liveNoteText.textContent = 'The report could not be generated.';
+                    return;
+                }
+
+                if (startedOnUtc > 0 && estimatedDurationSeconds > 0) {
+                    const elapsedSeconds = Math.max(0, (Date.now() - startedOnUtc) / 1000);
+                    const remainingSeconds = Math.max(0, estimatedDurationSeconds - elapsedSeconds);
+                    estimateText.textContent = `Estimated time remaining: about ${Math.ceil(remainingSeconds)} seconds`;
+                }
+
+                if (currentStageStartedOnUtc > 0) {
+                    const stageElapsed = Math.max(0, (Date.now() - currentStageStartedOnUtc) / 1000);
+                    liveNoteText.textContent = `Current stage running for about ${Math.ceil(stageElapsed)} seconds.`;
+                }
+            };
+
+            const poll = async () => {
+                try {
+                    const response = await fetch(statusUrl, { cache: 'no-store' });
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const progress = await response.json();
+                    updateProgressView(progress);
+
+                    if (!progress.isComplete && !progress.isFailed) {
+                        setTimeout(poll, 3000);
+                    }
+                }
+                catch {
+                    setTimeout(poll, 5000);
+                }
+            };
+
+            poll();
+        })();
+    </script>
+}

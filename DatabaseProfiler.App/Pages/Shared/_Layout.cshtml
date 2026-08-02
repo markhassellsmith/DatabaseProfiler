@@ -1,0 +1,167 @@
+﻿@using DatabaseProfiler.App.Services.Connections
+@using DatabaseProfiler.App.Services.Theme
+@{
+    var bodyClass = (Context.Request.Path.Value ?? string.Empty).StartsWith("/Profiling", StringComparison.OrdinalIgnoreCase)
+        ? "profiling-page"
+        : string.Empty;
+    var currentTheme = Context.GetTheme();
+    var themeValue = currentTheme.ToString().ToLowerInvariant();
+    var themeReturnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
+    var bootstrapTheme = currentTheme == AppTheme.Dark ? "dark" : "light";
+}
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="@bootstrapTheme" data-dp-theme="@themeValue">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Database Profiler</title>
+    <script type="importmap"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/DatabaseProfiler.App.styles.css" asp-append-version="true" />
+</head>
+<body>
+    <header>
+        @{
+            var connection = Context.Session.GetConnection();
+            var currentPath = Context.Request.Path.Value ?? string.Empty;
+            var isOnDatabasesPage = currentPath.StartsWith("/Databases", StringComparison.OrdinalIgnoreCase);
+            var isOnObjectBrowserPage = currentPath.StartsWith("/ObjectBrowser", StringComparison.OrdinalIgnoreCase);
+            var isOnColumnBrowserPage = currentPath.StartsWith("/ColumnBrowser", StringComparison.OrdinalIgnoreCase);
+            var isOnProfilingPage = currentPath.StartsWith("/Profiling", StringComparison.OrdinalIgnoreCase);
+            var isOnScriptBrowserPage = currentPath.StartsWith("/ScriptBrowser", StringComparison.OrdinalIgnoreCase);
+            var isOnReportsPage = currentPath.StartsWith("/Reports", StringComparison.OrdinalIgnoreCase);
+            var hasServer = !string.IsNullOrWhiteSpace(connection?.ServerName);
+            var hasDatabase = !string.IsNullOrWhiteSpace(connection?.SelectedDatabaseName);
+            var selectedObjectKind = connection?.SelectedObjectKind;
+            var selectedObjectName = connection?.SelectedObjectName;
+            var selectedObjectSchemaName = connection?.SelectedObjectSchemaName;
+            var isTableSelected = hasDatabase
+                && string.Equals(selectedObjectKind, "Table", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(selectedObjectName);
+            var isScriptObjectSelected = hasDatabase
+                && !string.IsNullOrWhiteSpace(selectedObjectSchemaName)
+                && !string.IsNullOrWhiteSpace(selectedObjectName)
+                && (
+                    string.Equals(selectedObjectKind, "View", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(selectedObjectKind, "Function", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(selectedObjectKind, "StoredProcedure", StringComparison.OrdinalIgnoreCase));
+            var showDatabases = hasDatabase || isOnDatabasesPage;
+            var showObjectBrowser = hasDatabase || isOnObjectBrowserPage;
+            var showColumnBrowser = isTableSelected || isOnColumnBrowserPage;
+            var showProfiling = isTableSelected || isOnProfilingPage;
+            var showScriptBrowser = isScriptObjectSelected || isOnScriptBrowserPage;
+            var showReports = hasServer && hasDatabase;
+        }
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+            <div class="container">
+                <a class="navbar-brand" asp-area="" asp-page="/Index">Database Profiler</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                        aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+                    <ul class="navbar-nav flex-grow-1">
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-page="/Index">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-page="/Connections/Index">Connection</a>
+                        </li>
+                        @if (showDatabases)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-area="" asp-page="/Databases/Index">Databases</a>
+                            </li>
+                        }
+                        @if (showObjectBrowser)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-area="" asp-page="/ObjectBrowser/Index">Object Browser</a>
+                            </li>
+                        }
+                        @if (showColumnBrowser)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-area="" asp-page="/ColumnBrowser/Index">Column Browser</a>
+                            </li>
+                        }
+                        @if (showProfiling)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-area="" asp-page="/Profiling/Index">Data Profiling</a>
+                            </li>
+                        }
+                        @if (showScriptBrowser)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-area="" asp-page="/ScriptBrowser/Index">Script Browser</a>
+                            </li>
+                        }
+                        @if (showReports)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-area="" asp-page="/Reports/Index">Reports</a>
+                            </li>
+                        }
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-page="/Privacy">Privacy</a>
+                        </li>
+                    </ul>
+                    <div class="dropdown theme-menu ms-auto">
+                        <button class="btn btn-outline-secondary btn-sm theme-menu-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Theme">
+                            <span aria-hidden="true">⚙</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end theme-menu-dropdown">
+                            <li>
+                                <form method="post" asp-page="/Theme/Index" class="theme-menu-form">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="ReturnUrl" value="@themeReturnUrl" />
+                                    <input type="hidden" name="Theme" value="Light" />
+                                    <button type="submit" class="dropdown-item @(currentTheme == AppTheme.Light ? "active" : string.Empty)">Light</button>
+                                </form>
+                            </li>
+                            <li>
+                                <form method="post" asp-page="/Theme/Index" class="theme-menu-form">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="ReturnUrl" value="@themeReturnUrl" />
+                                    <input type="hidden" name="Theme" value="Dark" />
+                                    <button type="submit" class="dropdown-item @(currentTheme == AppTheme.Dark ? "active" : string.Empty)">Dark</button>
+                                </form>
+                            </li>
+                            <li>
+                                <form method="post" asp-page="/Theme/Index" class="theme-menu-form">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="ReturnUrl" value="@themeReturnUrl" />
+                                    <input type="hidden" name="Theme" value="Ocean" />
+                                    <button type="submit" class="dropdown-item @(currentTheme == AppTheme.Ocean ? "active" : string.Empty)">Ocean</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    @await Component.InvokeAsync("ContextBreadcrumb")
+
+    <div class="container @bodyClass">
+        <main role="main" class="pb-3">
+            @RenderBody()
+        </main>
+    </div>
+
+    <footer class="border-top footer text-muted">
+        <div class="container">
+            &copy; 2026 - Database Profiler - <a asp-area="" asp-page="/Privacy">Privacy</a>
+        </div>
+    </footer>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

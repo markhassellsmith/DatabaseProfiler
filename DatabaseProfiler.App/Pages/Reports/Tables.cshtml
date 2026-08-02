@@ -1,0 +1,124 @@
+@page
+@model DatabaseProfiler.App.Pages.Reports.TablesModel
+@{
+    ViewData["Title"] = "Table Report";
+}
+
+<h1>Table Report</h1>
+
+<div class="mb-3">
+    <a asp-page="/Reports/Index" class="btn btn-outline-secondary btn-sm">Back to Reports</a>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-info" role="alert">
+        @Model.StatusMessage
+    </div>
+}
+
+<form method="post" class="card shadow-sm mb-3">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span>Select tables</span>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Table selection controls">
+            <button type="button" class="btn btn-outline-secondary" id="check-all-tables">Check all</button>
+            <button type="button" class="btn btn-outline-secondary" id="uncheck-all-tables">Uncheck all</button>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th style="width: 2.5rem;">
+                        <input type="checkbox" id="select-all-tables" aria-label="Select all tables" />
+                    </th>
+                    <th>Table</th>
+                    <th class="text-end">Rows</th>
+                    <th class="text-end">Columns</th>
+                    <th>PK</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var table in Model.AvailableTables)
+                {
+                    <tr>
+                        <td>
+                            <input class="form-check-input table-selection-checkbox"
+                                   type="checkbox"
+                                   name="SelectedTableValues"
+                                   value="@table.SelectionValue"
+                                   checked="@(Model.SelectedTableValues.Contains(table.SelectionValue, StringComparer.OrdinalIgnoreCase))" />
+                        </td>
+                        <td>
+                            <span class="fw-semibold">@table.DisplayName</span>
+                            <div class="text-muted small">@table.SchemaName</div>
+                        </td>
+                        <td class="text-end">@table.RowCount</td>
+                        <td class="text-end">@table.ColumnCount</td>
+                        <td>@(table.HasPrimaryKey ? "Yes" : "No")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <input type="hidden" asp-for="SelectedDatabaseName" />
+        <div class="text-muted small">Select one or more tables, then choose what to include in the report.</div>
+        <button type="submit" class="btn btn-primary">Continue to review</button>
+    </div>
+</form>
+
+<div class="card shadow-sm">
+    <div class="card-header">Selection review</div>
+    <div class="card-body">
+        @if (Model.HasSelection)
+        {
+            <ul class="mb-0">
+                @foreach (var tableName in Model.SelectedTableDisplayNames)
+                {
+                    <li>@tableName</li>
+                }
+            </ul>
+        }
+        else
+        {
+            <p class="mb-0 text-muted">All tables are available for review until you choose specific tables.</p>
+        }
+    </div>
+</div>
+
+<script>
+    (() => {
+        const selectAll = document.getElementById('select-all-tables');
+        const checkAll = document.getElementById('check-all-tables');
+        const uncheckAll = document.getElementById('uncheck-all-tables');
+        const checkboxes = () => Array.from(document.querySelectorAll('.table-selection-checkbox'));
+
+        const syncSelectAllState = () => {
+            const items = checkboxes();
+            if (items.length === 0) {
+                selectAll.checked = false;
+                selectAll.indeterminate = false;
+                return;
+            }
+
+            const checkedCount = items.filter(x => x.checked).length;
+            selectAll.checked = checkedCount === items.length;
+            selectAll.indeterminate = checkedCount > 0 && checkedCount < items.length;
+        };
+
+        const setAll = (checked) => {
+            checkboxes().forEach(cb => cb.checked = checked);
+            syncSelectAllState();
+        };
+
+        selectAll?.addEventListener('change', () => setAll(selectAll.checked));
+        checkAll?.addEventListener('click', () => setAll(true));
+        uncheckAll?.addEventListener('click', () => setAll(false));
+        checkboxes().forEach(cb => cb.addEventListener('change', syncSelectAllState));
+        syncSelectAllState();
+    })();
+</script>
+

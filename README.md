@@ -1,10 +1,10 @@
-# DataProfiler
+# Database Profiler
 
 A web-based SQL Server database exploration and profiling tool that helps database administrators, developers, and analysts quickly understand database structure, generate schema scripts, and analyze data quality.
 
 ## Overview
 
-DataProfiler provides a streamlined workflow for exploring SQL Server databases without writing queries. The application offers three core capabilities:
+Database Profiler provides a streamlined workflow for exploring SQL Server databases without writing queries. The application offers three core capabilities:
 
 - **Schema Discovery** - Browse database objects, tables, columns, and relationships
 - **Script Generation** - Export `CREATE TABLE` scripts and schema definitions
@@ -21,7 +21,7 @@ DataProfiler provides a streamlined workflow for exploring SQL Server databases 
 
 ## Workflow
 
-DataProfiler follows a simple, guided workflow:
+Database Profiler follows a simple, guided workflow:
 
 ### 1. Connect to a Server and Database
 
@@ -110,15 +110,23 @@ Generate comprehensive Excel workbooks containing:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/DataProfiler-VS.git
-   cd DataProfiler-VS
+   git clone https://github.com/yourusername/DatabaseProfiler-VS.git
+   cd DatabaseProfiler-VS
    ```
 
-2. Deploy the V3 stored procedure to your target database(s):
-   ```sql
-   -- Run the script from DataProfiler.App/Docs/usp_ProfileTable_v3_OPTIMIZED.sql
-   -- This provides significantly better performance than dynamic SQL profiling
-   ```
+2. **(Optional but Recommended)** Deploy the V3 stored procedure for better performance:
+
+   > 💡 **Performance Optimization for DBAs**  
+   > Deploy the `usp_ProfileTable` stored procedure to get **30-40% faster profiling**.  
+   > **This is optional** - the application automatically falls back to dynamic SQL if the procedure isn't found.  
+   > No errors, no downtime!
+   >
+   > **Quick Deploy:**
+   > - Open the file: `DatabaseProfiler.App/Docs/usp_ProfileTable_v3_OPTIMIZED.sql`
+   > - Run it in SSMS on your target database(s)
+   > - That's it! The app will automatically detect and use it.
+   >
+   > 📖 [Step-by-step instructions](DatabaseProfiler.App/Docs/QUICK_START_V3.md)
 
 3. Configure connection settings in `appsettings.json` (optional - can also connect via UI):
    ```json
@@ -132,11 +140,15 @@ Generate comprehensive Excel workbooks containing:
 
 4. Run the application:
    ```bash
-   cd DataProfiler.App
+   cd DatabaseProfiler.App
    dotnet run
    ```
 
 5. Navigate to `https://localhost:5001` in your browser
+
+> ℹ️ **Note:** You can start using the application immediately without deploying the stored procedure.  
+> Profile data will work right away using the built-in dynamic SQL approach.  
+> Deploy the stored procedure later when you're ready for optimized performance.
 
 ### Configuration
 
@@ -162,19 +174,19 @@ Configure profiling behavior in `appsettings.json`:
 
 ## Deployment
 
-For production deployment, see [Deployment Guide](DataProfiler.App/Docs/DEPLOYMENT_GUIDE.md) for:
+For production deployment, see [Deployment Guide](DatabaseProfiler.App/Docs/DEPLOYMENT_GUIDE.md) for:
 - IIS configuration
 - Application pool settings
 - Timeout configuration for long-running reports
 
 ## Documentation
 
-Additional documentation is available in the `DataProfiler.App/Docs/` folder:
+Additional documentation is available in the `DatabaseProfiler.App/Docs/` folder:
 
-- [Deployment Guide](DataProfiler.App/Docs/DEPLOYMENT_GUIDE.md) - Production deployment settings
-- [Schema and Profile Design](DataProfiler.App/Docs/SCHEMA_AND_PROFILE_DESIGN.md) - Architecture documentation
-- [Field Reference](DataProfiler.App/Docs/FIELD_REFERENCE.md) - Complete field catalog
-- [V3 Implementation Notes](DataProfiler.App/Docs/V3_IMPLEMENTATION_COMPLETE.md) - Performance optimization details
+- [Deployment Guide](DatabaseProfiler.App/Docs/DEPLOYMENT_GUIDE.md) - Production deployment settings
+- [Schema and Profile Design](DatabaseProfiler.App/Docs/SCHEMA_AND_PROFILE_DESIGN.md) - Architecture documentation
+- [Field Reference](DatabaseProfiler.App/Docs/FIELD_REFERENCE.md) - Complete field catalog
+- [V3 Implementation Notes](DatabaseProfiler.App/Docs/V3_IMPLEMENTATION_COMPLETE.md) - Performance optimization details
 
 ## Architecture
 

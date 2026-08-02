@@ -1,0 +1,40 @@
+@model DatabaseProfiler.App.ViewComponents.ContextBreadcrumbViewModel
+
+@if (Model.HasServer || Model.HasDatabase || Model.HasObject)
+{
+    <div class="context-breadcrumb">
+        <div class="container">
+            <div class="context-breadcrumb-content">
+                @if (Model.HasServer)
+                {
+                    <span class="context-breadcrumb-item">
+                        <span class="context-breadcrumb-label">Server:</span>
+                        <span class="context-breadcrumb-value">@Model.ServerName</span>
+                    </span>
+                }
+                @if (Model.HasDatabase)
+                {
+                    @if (Model.HasServer)
+                    {
+                        <span class="context-breadcrumb-separator">›</span>
+                    }
+                    <span class="context-breadcrumb-item">
+                        <span class="context-breadcrumb-label">Database:</span>
+                        <span class="context-breadcrumb-value">@Model.DatabaseName</span>
+                    </span>
+                }
+                @if (Model.HasObject)
+                {
+                    @if (Model.HasDatabase)
+                    {
+                        <span class="context-breadcrumb-separator">›</span>
+                    }
+                    <span class="context-breadcrumb-item">
+                        <span class="context-breadcrumb-label">@Model.ObjectKindDisplay:</span>
+                        <span class="context-breadcrumb-value">@Model.ObjectDisplayName</span>
+                    </span>
+                }
+            </div>
+        </div>
+    </div>
+}

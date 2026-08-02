@@ -1,0 +1,332 @@
+@page
+@model DatabaseProfiler.App.Pages.Reports.ConfirmModel
+@{
+    ViewData["Title"] = "Review Selected Tables";
+}
+
+<h1>Review Selected Tables</h1>
+
+<div class="mb-3">
+    <a asp-page="/Reports/Tables" class="btn btn-outline-secondary btn-sm">Back to table selection</a>
+</div>
+
+<form method="get" class="card shadow-sm mb-3">
+    <div class="card-header">Report content</div>
+    <div class="card-body d-flex flex-column gap-2">
+        <input type="hidden" name="jobId" value="@Model.ReportJobId" />
+        <div class="form-check">
+            <input class="form-check-input" type="radio" name="includeTableProfileInfo" value="false" id="confirm-columns-only" @(Model.IncludeTableProfileInfo ? null : "checked=\"checked\"") onchange="this.form.submit()" />
+            <label class="form-check-label" for="confirm-columns-only">Include columns only</label>
+        </div>
+        <div class="form-check">
+            <input class="form-check-input" type="radio" name="includeTableProfileInfo" value="true" id="confirm-columns-and-profile-info" @(Model.IncludeTableProfileInfo ? "checked=\"checked\"" : null) onchange="this.form.submit()" />
+            <label class="form-check-label" for="confirm-columns-and-profile-info">Include columns and data profile info</label>
+        </div>
+        <div class="text-muted small">Toggling this changes the estimated time and the resulting Excel layout.</div>
+    </div>
+</form>
+
+@if (Model.Estimate is not null && Model.ReportProgress is null)
+{
+    <div class="alert alert-info" role="alert">
+        @Model.Estimate.DisplayText
+    </div>
+}
+
+@if (Model.ReportProgress is not null)
+{
+    <div class="card shadow-sm mb-3"
+         data-report-progress
+         data-job-id="@Model.ReportJobId"
+         data-status-url="@Url.Page("/Reports/Confirm", "Status", new { jobId = Model.ReportJobId })"
+         data-download-url="@Url.Page("/Reports/Confirm", "Download", new { jobId = Model.ReportJobId })"
+         data-estimated-duration-seconds="@Model.ReportProgress.EstimatedDurationSeconds"
+         data-started-on-utc="@Model.ReportProgress.StartedOnUtc?.ToString("O")"
+          data-current-stage-started-on-utc="@Model.ReportProgress.CurrentStageStartedOnUtc?.ToString("O")"
+         data-running="@(Model.ReportProgress.IsRunning ? "true" : "false")">
+        <div class="card-header d-flex justify-content-between align-items-center gap-2">
+            <span>Report generation progress</span>
+            <span class="badge @(Model.ReportProgress.IsFailed ? "bg-danger" : Model.ReportProgress.IsComplete ? "bg-success" : "bg-primary")">@Model.ReportProgress.Stage</span>
+        </div>
+        <div class="card-body">
+            <div class="progress mb-3" style="height: 1.25rem;">
+                <div class="progress-bar" role="progressbar" style="width: @Model.ReportProgress.PercentComplete%;" aria-valuenow="@Model.ReportProgress.PercentComplete" aria-valuemin="0" aria-valuemax="100">
+                    @Model.ReportProgress.PercentComplete%
+                </div>
+            </div>
+            <p class="mb-2" data-report-status-text>@Model.ReportProgress.Message</p>
+            <p class="mb-2 text-muted small" data-report-diagnostics></p>
+            <p class="mb-2 text-muted" data-report-estimate-text>
+                @(Model.ReportProgress.IsRunning && Model.Estimate is not null
+                    ? $"Estimated time remaining: {Model.Estimate.DisplayText.Replace("Estimated time: about ", string.Empty)}"
+                    : Model.ReportProgress.IsComplete
+                        ? "Report generation completed."
+                        : Model.ReportProgress.IsFailed
+                            ? "Report generation failed."
+                            : Model.Estimate is not null
+                                ? Model.Estimate.DisplayText
+                                : string.Empty)
+            </p>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-success @(Model.ReportProgress.IsComplete ? string.Empty : "d-none")" 
+                   data-report-download 
+                   href="@Url.Page("/Reports/Confirm", "Download", new { jobId = Model.ReportJobId })">Download Excel report</a>
+                <span class="text-muted small align-self-center" data-report-live-note></span>
+            </div>
+            @if (Model.ReportProgress.IsFailed)
+            {
+                <div class="alert alert-danger mt-3 mb-0" role="alert">
+                    @Model.ReportProgress.Message
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<div class="card shadow-sm">
+    <div class="card-header">Selected tables</div>
+    <div class="card-body">
+        @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+        {
+            <div class="alert alert-info" role="alert">@Model.StatusMessage</div>
+        }
+
+        @if (Model.SelectedTables.Count == 0)
+        {
+            <p class="mb-0 text-muted">No tables are selected yet. Go back and choose one or more tables.</p>
+        }
+        else
+        {
+            <p class="text-muted">Review the selected tables before continuing to report generation.</p>
+            <ul class="mb-0">
+                @foreach (var table in Model.SelectedTables)
+                {
+                    <li>@table.DisplayName</li>
+                }
+            </ul>
+        }
+
+        <form method="post" asp-page-handler="Generate" class="mt-3">
+            <input type="hidden" asp-for="IncludeTableProfileInfo" />
+            <button type="submit" class="btn btn-primary" @(Model.SelectedTables.Count == 0 ? "disabled" : null)>Generate Excel report</button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const root = document.querySelector('[data-report-progress]');
+            if (!(root instanceof HTMLElement)) {
+                return;
+            }
+
+            const progressBar = root.querySelector('.progress-bar');
+            const downloadLink = root.querySelector('[data-report-download]');
+            const diagnosticsText = root.querySelector('[data-report-diagnostics]');
+            const estimateText = root.querySelector('[data-report-estimate-text]');
+            const badge = root.querySelector('.badge');
+            const statusText = root.querySelector('[data-report-status-text]');
+            const liveNoteText = root.querySelector('[data-report-live-note]');
+
+            if (!(progressBar instanceof HTMLElement)) {
+                return;
+            }
+
+            const statusUrl = root.dataset.statusUrl;
+            const downloadUrl = root.dataset.downloadUrl;
+            const startedOnUtcValue = root.dataset.startedOnUtc;
+            const currentStageStartedOnUtcValue = root.dataset.currentStageStartedOnUtc;
+            const estimatedDurationSeconds = Number(root.dataset.estimatedDurationSeconds || '0');
+            const startedOnUtc = startedOnUtcValue ? new Date(startedOnUtcValue) : null;
+            let currentStageStartedOnUtc = currentStageStartedOnUtcValue ? new Date(currentStageStartedOnUtcValue) : startedOnUtc;
+            let lastServerPercent = Number(progressBar.getAttribute('aria-valuenow') || '0');
+            let lastUpdatedOnUtc = startedOnUtc;
+            let isRunning = root.dataset.running === 'true';
+
+            if (!startedOnUtc || !estimatedDurationSeconds || Number.isNaN(startedOnUtc.getTime())) {
+                return;
+            }
+
+            const formatDuration = (totalSeconds) => {
+                let remainingSeconds = Math.max(0, Math.floor(totalSeconds));
+                const days = Math.floor(remainingSeconds / 86400);
+                remainingSeconds %= 86400;
+                const hours = Math.floor(remainingSeconds / 3600);
+                remainingSeconds %= 3600;
+                const minutes = Math.floor(remainingSeconds / 60);
+                const seconds = remainingSeconds % 60;
+
+                const parts = [];
+
+                if (days > 0) {
+                    parts.push(`${days} day${days === 1 ? '' : 's'}`);
+                }
+
+                if (days > 0 || hours > 0) {
+                    parts.push(`${hours} hour${hours === 1 ? '' : 's'}`);
+                }
+
+                if (days > 0 || hours > 0 || minutes > 0) {
+                    parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`);
+                }
+
+                parts.push(`${seconds} second${seconds === 1 ? '' : 's'}`);
+                return parts.join(' ');
+            };
+
+            const renderElapsedTime = () => {
+                if (!(liveNoteText instanceof HTMLElement)) {
+                    return;
+                }
+
+                const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedOnUtc.getTime()) / 1000));
+                liveNoteText.textContent = `Elapsed time: ${formatDuration(elapsedSeconds)}.`;
+            };
+
+            const renderDiagnostics = () => {
+                if (!(diagnosticsText instanceof HTMLElement)) {
+                    return;
+                }
+
+                const now = Date.now();
+                const lastUpdateSeconds = lastUpdatedOnUtc ? Math.max(0, Math.floor((now - lastUpdatedOnUtc.getTime()) / 1000)) : null;
+                const stageAgeSeconds = currentStageStartedOnUtc ? Math.max(0, Math.floor((now - currentStageStartedOnUtc.getTime()) / 1000)) : null;
+                const diagnostics = [];
+
+                if (isRunning) {
+                    diagnostics.push(lastUpdateSeconds === null
+                        ? 'Waiting for the first server update.'
+                        : `Last server update ${formatDuration(lastUpdateSeconds)} ago.`);
+
+                    if (stageAgeSeconds !== null) {
+                        diagnostics.push(`Current stage active for ${formatDuration(stageAgeSeconds)}.`);
+                    }
+                }
+                else if (lastUpdateSeconds !== null) {
+                    diagnostics.push(`Last server update ${formatDuration(lastUpdateSeconds)} ago.`);
+                }
+
+                diagnosticsText.textContent = diagnostics.join(' ');
+            };
+
+            const applyProgress = (progress) => {
+                if (!progress || typeof progress !== 'object') {
+                    return;
+                }
+
+                if (typeof progress.percentComplete === 'number' && !Number.isNaN(progress.percentComplete)) {
+                    lastServerPercent = Math.max(lastServerPercent, progress.percentComplete);
+                    progressBar.style.width = `${progress.percentComplete}%`;
+                    progressBar.setAttribute('aria-valuenow', progress.percentComplete.toString());
+                    progressBar.textContent = `${progress.percentComplete}%`;
+                }
+
+                if (typeof progress.message === 'string' && statusText instanceof HTMLElement) {
+                    statusText.textContent = progress.message;
+                }
+
+                if (typeof progress.stage === 'string' && badge instanceof HTMLElement) {
+                    badge.textContent = progress.stage;
+                    badge.classList.remove('bg-primary', 'bg-success', 'bg-danger');
+                    badge.classList.add(progress.isFailed ? 'bg-danger' : progress.isComplete ? 'bg-success' : 'bg-primary');
+                }
+
+                if (typeof progress.updatedOnUtc === 'string') {
+                    const parsedUpdatedOnUtc = new Date(progress.updatedOnUtc);
+                    if (!Number.isNaN(parsedUpdatedOnUtc.getTime())) {
+                        lastUpdatedOnUtc = parsedUpdatedOnUtc;
+                    }
+                }
+
+                if (typeof progress.currentStageStartedOnUtc === 'string') {
+                    const parsedStageStartedOnUtc = new Date(progress.currentStageStartedOnUtc);
+                    if (!Number.isNaN(parsedStageStartedOnUtc.getTime())) {
+                        currentStageStartedOnUtc = parsedStageStartedOnUtc;
+                    }
+                }
+
+                if (typeof progress.isRunning === 'boolean') {
+                    isRunning = progress.isRunning;
+                }
+
+                if (estimateText instanceof HTMLElement) {
+                    if (progress.isComplete) {
+                        estimateText.textContent = 'Report generation completed.';
+                    }
+                    else if (progress.isFailed) {
+                        estimateText.textContent = 'Report generation failed.';
+                    }
+                }
+
+                if (liveNoteText instanceof HTMLElement) {
+                    renderElapsedTime();
+                }
+
+                if (downloadLink instanceof HTMLElement) {
+                    downloadLink.classList.toggle('d-none', !progress.isComplete);
+                    if (progress.isComplete && typeof downloadUrl === 'string') {
+                        downloadLink.setAttribute('href', downloadUrl);
+                    }
+                }
+
+                renderDiagnostics();
+            };
+
+            const refreshStatus = async () => {
+                if (!statusUrl || !isRunning) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(statusUrl, { cache: 'no-store' });
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const progress = await response.json();
+                    applyProgress(progress);
+                }
+                catch {
+                    renderDiagnostics();
+                }
+            };
+
+            const tick = () => {
+                const isFailed = badge instanceof HTMLElement && badge.classList.contains('bg-danger');
+                const isComplete = badge instanceof HTMLElement && badge.classList.contains('bg-success');
+                if (isFailed || isComplete) {
+                    return;
+                }
+
+                const serverPercent = Number(progressBar.getAttribute('aria-valuenow') || '0');
+                if (!Number.isNaN(serverPercent)) {
+                    lastServerPercent = Math.max(lastServerPercent, serverPercent);
+                }
+
+                const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedOnUtc.getTime()) / 1000));
+                const remainingSeconds = Math.max(0, estimatedDurationSeconds - elapsedSeconds);
+                const estimatedPercent = Math.min(95, Math.max(0, Math.floor((elapsedSeconds / estimatedDurationSeconds) * 95)));
+                const percent = Math.max(lastServerPercent, estimatedPercent);
+
+                progressBar.style.width = `${percent}%`;
+                progressBar.setAttribute('aria-valuenow', percent.toString());
+                progressBar.textContent = `${percent}%`;
+
+                if (estimateText instanceof HTMLElement) {
+                    estimateText.textContent = remainingSeconds === 0
+                        ? 'Estimated time remaining: less than 1 second.'
+                        : `Estimated time remaining: about ${formatDuration(remainingSeconds)}.`;
+                }
+
+                renderElapsedTime();
+                renderDiagnostics();
+            };
+
+            tick();
+            refreshStatus();
+            window.setInterval(tick, 1000);
+            window.setInterval(refreshStatus, 5000);
+        })();
+    </script>
+}
