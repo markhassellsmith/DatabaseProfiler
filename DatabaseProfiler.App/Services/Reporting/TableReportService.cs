@@ -612,7 +612,6 @@ public sealed class TableReportService
         {
             row.Append(CreateTextCell(header, HeaderStyleIndex));
         }
-
         sheetData.AppendChild(row);
     }
 

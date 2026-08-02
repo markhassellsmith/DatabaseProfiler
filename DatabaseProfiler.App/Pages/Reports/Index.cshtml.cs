@@ -37,6 +37,12 @@ public class IndexModel : PageModel
                 "Open table report",
                 "/Reports/Tables"),
             new ReportChoiceViewModel(
+                "Excel Report on Relationships",
+                "Generate a two-tab Excel report showing explicit foreign keys and suggested relationships based on naming patterns.",
+                "Excel",
+                "Open relationships report",
+                "/Relationships/Index"),
+            new ReportChoiceViewModel(
                 "Script Report",
                 "Generate plain text scripts for views, functions, and stored procedures.",
                 "Text",
