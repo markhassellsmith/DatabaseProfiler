@@ -32,12 +32,12 @@ Start by connecting to your SQL Server instance and selecting a database to expl
 
 ### 2. Object Browser Sections
 Click the down-arrow to the right of the Tables, Views, Functions or Stored Procedures section to view lists of objects.
-![Object Browser Screenshot](DatabaseProfiler.App/Docs/screenshots/object-browser-typelist.png)
+![Object Browser Screenshot](docs/screenshots/object-browser-typelist.png)
 *Screenshot placeholder: Object Browser showing choice of Tables, Views, Functions or Stored Procedures*
 
 #### 2A. Clicking on a table name opens the Column Browser
 
-![Object Browser Screenshot](DatabaseProfiler.App/Docs/screenshots/object-browser-tablelist.png)
+![Object Browser Screenshot](docs/screenshots/object-browser-tablelist.png)
 *Screenshot placeholder: Object Browser showing list of tables*
 
 #### 2B. Clicking on the "Profile Info" link beside a table name opens the data profile for the table 
@@ -59,7 +59,7 @@ From here you can:
 - Generate `CREATE TABLE` scripts
 - Navigate to data profiling
 
-![Column Browser Screenshot](DatabaseProfiler.App/Docs/screenshots/column-browser.png)
+![Column Browser Screenshot](docs/screenshots/column-browser.png)
 *Screenshot placeholder: Column Browser showing table columns*
 
 ### 4. Data Profiling
@@ -72,7 +72,7 @@ Analyze actual data in the selected table:
 - **Value Frequency** - Most common values with counts and percentages
 - **ID Column Detection** - Automatic handling of identifier columns
 
-![Data Profiling Screenshot](DatabaseProfiler.App/Docs/screenshots/data-profiling.png)
+![Data Profiling Screenshot](docs/screenshots/data-profiling.png)
 *Screenshot placeholder: Data Profiling page showing column statistics*
 
 ### 5. Relationship Browser
@@ -88,7 +88,7 @@ From the Relationships page you can:
 - Navigate to related tables
 - Generate relationship reports
 
-![Relationships Browser Screenshot](DatabaseProfiler.App/Docs/screenshots/relationships-browser.png)
+![Relationships Browser Screenshot](docs/screenshots/relationships-browser.png)
 *Screenshot placeholder: Relationships Browser showing foreign key relationships*
 
 ### 6. Excel Report Generation
@@ -108,12 +108,12 @@ Generate comprehensive Excel workbooks for multiple report types:
 
 **Report Confirmation Page:**
 
-![Reports Confirm Screenshot](DatabaseProfiler.App/Docs/screenshots/reports-confirm.png)
+![Reports Confirm Screenshot](docs/screenshots/reports-confirm.png)
 *Screenshot placeholder: Reports confirmation page showing selected tables*
 
 **Sample Excel Report:**
 
-![Excel Report Screenshot](DatabaseProfiler.App/Docs/screenshots/excel-report.png)
+![Excel Report Screenshot](docs/screenshots/excel-report.png)
 *Screenshot placeholder: Excel report showing summary and detail sheets*
 
 ### 7. Entity-Relationship Diagram (ERD) Export
@@ -125,7 +125,7 @@ Generate ERD diagrams for documentation and analysis:
 - **Relationship Options** - Include explicit foreign keys and/or suggested relationships
 - **Multi-Format Download** - Export both formats simultaneously or individually
 
-![ERD Export Screenshot](DatabaseProfiler.App/Docs/screenshots/erd-export.png)
+![ERD Export Screenshot](docs/screenshots/erd-export.png)
 *Screenshot placeholder: ERD export page with table selection and format options*
 
 ## Technology Stack
