@@ -4,18 +4,21 @@ A web-based SQL Server database exploration and profiling tool that helps databa
 
 ## Overview
 
-Database Profiler provides a streamlined workflow for exploring SQL Server databases without writing queries. The application offers three core capabilities:
+Database Profiler provides a streamlined workflow for exploring SQL Server databases without writing queries. The application offers four core capabilities:
 
 - **Schema Discovery** - Browse database objects, tables, columns, and relationships
+- **Relationship Mapping** - Visualize foreign key relationships and generate ERD exports
 - **Script Generation** - Export `CREATE TABLE` scripts and schema definitions
 - **Data Profiling** - Analyze column statistics, data quality, and value distributions
 
 ## Key Features
 
 - 🔍 **Interactive Schema Browser** - Navigate database objects with a clean, intuitive interface
+- 🔗 **Relationship Browser** - Explore explicit and suggested foreign key relationships between tables
 - 📊 **Automated Data Profiling** - Statistical analysis including nulls, distinct counts, min/max values, and frequency distributions
 - 📝 **Script Export** - Generate production-ready `CREATE TABLE` scripts
-- 📈 **Excel Reporting** - Comprehensive table reports with hyperlinked navigation
+- 🗺️ **ERD Generation** - Export Entity-Relationship Diagrams in SQL DDL and Mermaid formats
+- 📈 **Excel Reporting** - Comprehensive table and relationship reports with hyperlinked navigation
 - 🎨 **Theme Support** - Light, dark, and ocean color themes
 - ⚡ **V3 Optimized Stored Procedure** - 30-40% faster profiling with the included `usp_ProfileTable_v3_OPTIMIZED` stored procedure
 
@@ -29,12 +32,12 @@ Start by connecting to your SQL Server instance and selecting a database to expl
 
 ### 2. Object Browser Sections
 Click the down-arrow to the right of the Tables, Views, Functions or Stored Procedures section to view lists of objects.
-![Object Browser Screenshot](docs/screenshots/object-browser-typelist.png)
+![Object Browser Screenshot](Docs/screenshots/object-browser-typelist.png)
 *Screenshot placeholder: Object Browser showing choice of Tables, Views, Functions or Stored Procedures*
 
 #### 2A. Clicking on a table name opens the Column Browser
 
-![Object Browser Screenshot](docs/screenshots/object-browser-tablelist.png)
+![Object Browser Screenshot](Docs/screenshots/object-browser-tablelist.png)
 *Screenshot placeholder: Object Browser showing list of tables*
 
 #### 2B. Clicking on the "Profile Info" link beside a table name opens the data profile for the table 
@@ -56,7 +59,7 @@ From here you can:
 - Generate `CREATE TABLE` scripts
 - Navigate to data profiling
 
-![Column Browser Screenshot](docs/screenshots/column-browser.png)
+![Column Browser Screenshot](Docs/screenshots/column-browser.png)
 *Screenshot placeholder: Column Browser showing table columns*
 
 ### 4. Data Profiling
@@ -69,26 +72,61 @@ Analyze actual data in the selected table:
 - **Value Frequency** - Most common values with counts and percentages
 - **ID Column Detection** - Automatic handling of identifier columns
 
-![Data Profiling Screenshot](docs/screenshots/data-profiling.png)
+![Data Profiling Screenshot](Docs/screenshots/data-profiling.png)
 *Screenshot placeholder: Data Profiling page showing column statistics*
 
-### 5. Excel Report Generation
+### 5. Relationship Browser
 
-Generate comprehensive Excel workbooks containing:
+Explore table relationships and database structure:
+- **Explicit Relationships** - Foreign keys defined in the database schema
+- **Suggested Relationships** - Automatically detected potential relationships based on column naming patterns
+- **Relationship Details** - View parent/child tables, columns, cardinality, and cascade rules
+- **Interactive Navigation** - Click table names to jump to their column definitions or profiles
+
+From the Relationships page you can:
+- Filter by specific tables or schemas
+- Navigate to related tables
+- Generate relationship reports
+
+![Relationships Browser Screenshot](Docs/screenshots/relationships-browser.png)
+*Screenshot placeholder: Relationships Browser showing foreign key relationships*
+
+### 6. Excel Report Generation
+
+Generate comprehensive Excel workbooks for multiple report types:
+
+#### Table Reports
 - **Summary Sheet** - Database overview with hyperlinked table navigation
 - **Detail Sheets** - Per-table analysis with full profiling results
 - **Hyperlinked Navigation** - Jump between summary and detail sheets
 - **Professional Formatting** - Styled headers, banded rows, and freeze panes
 
+#### Relationship Reports
+- **Relationship Overview** - All explicit and suggested relationships in a single workbook
+- **Detailed Metadata** - Parent/child tables, columns, cardinality, cascade rules, and constraint names
+- **Excel Export** - Professional formatting with frozen header rows and auto-sized columns
+
 **Report Confirmation Page:**
 
-![Reports Confirm Screenshot](docs/screenshots/reports-confirm.png)
+![Reports Confirm Screenshot](Docs/screenshots/reports-confirm.png)
 *Screenshot placeholder: Reports confirmation page showing selected tables*
 
 **Sample Excel Report:**
 
-![Excel Report Screenshot](docs/screenshots/excel-report.png)
+![Excel Report Screenshot](Docs/screenshots/excel-report.png)
 *Screenshot placeholder: Excel report showing summary and detail sheets*
+
+### 7. Entity-Relationship Diagram (ERD) Export
+
+Generate ERD diagrams for documentation and analysis:
+- **SQL DDL Export** - Production-ready `CREATE TABLE` statements with foreign key constraints
+- **Mermaid Diagram Export** - Markdown-based ERD diagrams compatible with GitHub, documentation tools, and Mermaid renderers
+- **Table Selection** - Choose specific tables to include in the diagram
+- **Relationship Options** - Include explicit foreign keys and/or suggested relationships
+- **Multi-Format Download** - Export both formats simultaneously or individually
+
+![ERD Export Screenshot](Docs/screenshots/erd-export.png)
+*Screenshot placeholder: ERD export page with table selection and format options*
 
 ## Technology Stack
 
@@ -192,9 +230,11 @@ Additional documentation is available in the `DatabaseProfiler.App/Docs/` folder
 
 - **Presentation Layer**: Razor Pages with server-side rendering
 - **Service Layer**: 
-  - `SchemaDiscoveryService` - Database metadata discovery
+  - `SchemaDiscoveryService` - Database metadata and relationship discovery
   - `TableProfilingService` - Data analysis and statistics
-  - `TableReportService` - Excel report generation
+  - `TableReportService` - Excel table report generation
+  - `RelationshipReportService` - Excel relationship report generation
+  - `ErdGenerationService` - ERD export in SQL DDL and Mermaid formats
 - **Background Processing**: Report queue with progress tracking
 - **Session State**: Connection context and user selections
 
