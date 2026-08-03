@@ -217,9 +217,9 @@
 
                 if (typeof progress.percentComplete === 'number' && !Number.isNaN(progress.percentComplete)) {
                     lastServerPercent = Math.max(lastServerPercent, progress.percentComplete);
-                    progressBar.style.width = `${progress.percentComplete}%`;
-                    progressBar.setAttribute('aria-valuenow', progress.percentComplete.toString());
-                    progressBar.textContent = `${progress.percentComplete}%`;
+                    progressBar.style.width = `${lastServerPercent}%`;
+                    progressBar.setAttribute('aria-valuenow', lastServerPercent.toString());
+                    progressBar.textContent = `${lastServerPercent}%`;
                 }
 
                 if (typeof progress.message === 'string' && statusText instanceof HTMLElement) {
