@@ -37,7 +37,7 @@ Click the down-arrow to the right of the Tables, Views, Functions or Stored Proc
 
 ### 3. Clicking on the section for "Tables" displays a list of tables in the database
 
-![Object Browser Screenshot](Docs/screenshots/2-object-browser-tables.png)
+![Object Browser Screenshot](DatabaseProfiler.App/Docs/screenshots/2-object-browser-tables.png)
 *Screenshot placeholder: Object Browser showing list of tables*
 
 
@@ -57,7 +57,7 @@ From here you can:
 - Generate `CREATE TABLE` scripts
 - Navigate to data profiling
 
-![Column Browser Screenshot](Docs/screenshots/3-column-browser.png)
+![Column Browser Screenshot](DatabaseProfiler.App/Docs/screenshots/3-column-browser.png)
 *Screenshot placeholder: Column Browser showing table columns*
 
 
@@ -73,7 +73,7 @@ Analyze actual data in the selected table:
 - **Value Frequency** - Most common values with counts and percentages
 - **ID Column Detection** - Automatic handling of identifier columns
 
-![Data Profiling Screenshot](Docs/screenshots/4-data-profiling.png)
+![Data Profiling Screenshot](DatabaseProfiler.App/Docs/screenshots/4-data-profiling.png)
 *Screenshot placeholder: Data Profiling page showing column statistics*
 
 ### 6. Relationship Browser
@@ -89,7 +89,7 @@ From the Relationships page you can:
 - Navigate to related tables
 - Generate relationship reports
 
-![Relationships Browser Screenshot](Docs/screenshots/5-relationships.png)
+![Relationships Browser Screenshot](DatabaseProfiler.App/Docs/screenshots/5-relationships.png)
 *Screenshot placeholder: Relationships Browser showing foreign key relationships*
 
 ### 7. Excel Report Generation
@@ -109,12 +109,12 @@ Generate comprehensive Excel workbooks for multiple report types:
 
 **Report Confirmation Page:**
 
-![Reports Confirm Screenshot](Docs/screenshots/6-reports-confirm.png)
+![Reports Confirm Screenshot](DatabaseProfiler.App/Docs/screenshots/6-reports-confirm.png)
 *Screenshot placeholder: Reports confirmation page showing selected tables*
 
 **Sample Excel Report:**
 
-![Excel Report Screenshot](Docs/screenshots/7-excel-report.png)
+![Excel Report Screenshot](DatabaseProfiler.App/Docs/screenshots/7-excel-report.png)
 *Screenshot placeholder: Excel report showing summary and detail sheets*
 
 ### 7. Entity-Relationship Diagram (ERD) Export
@@ -126,7 +126,7 @@ Generate ERD diagrams for documentation and analysis:
 - **Relationship Options** - Include explicit foreign keys and/or suggested relationships
 - **Multi-Format Download** - Export both formats simultaneously or individually
 
-![ERD Export Screenshot](Docs/screenshots/8-ERD.png)
+![ERD Export Screenshot](DatabaseProfiler.App/Docs/screenshots/8-ERD.png)
 *Screenshot placeholder: ERD export page with table selection and format options*
 
 ## Technology Stack
