@@ -60,10 +60,10 @@ From here you can:
 *Section 4 screenshot: Column Browser showing table columns*
 
 
-### 5. Clicking on the "Profile Info" link beside a table name opens the data profile for the table 
+### 5. Clicking on the "Profile Info" link beside a table name opens the data profile for the table*
+(*Refer to the list of tables screenshot in Section 3 to see the "Profile Info" link.
 
-Data Profiling
-
+**Data Profiling**
 Analyze actual data in the selected table:
 - **Count Statistics** - Total rows, null counts, distinct values
 - **Numeric Analysis** - Min, average, max, standard deviation
