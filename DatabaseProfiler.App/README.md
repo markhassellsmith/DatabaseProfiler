@@ -32,20 +32,18 @@ Start by connecting to your SQL Server instance and selecting a database to expl
 
 ### 2. Object Browser Sections
 Click the down-arrow to the right of the Tables, Views, Functions or Stored Procedures section to view lists of objects.
-![Object Browser Screenshot](Docs/screenshots/object-browser-typelist.png)
+![Object Browser Screenshot](Docs/screenshots/1-object-browser-sections.png)
 *Screenshot placeholder: Object Browser showing choice of Tables, Views, Functions or Stored Procedures*
 
-#### 2A. Clicking on a table name opens the Column Browser
+### 3. Clicking on the section for "Tables" displays a list of tables in the database
 
-![Object Browser Screenshot](Docs/screenshots/object-browser-tablelist.png)
+![Object Browser Screenshot](Docs/screenshots/2-object-browser-tables.png)
 *Screenshot placeholder: Object Browser showing list of tables*
 
-#### 2B. Clicking on the "Profile Info" link beside a table name opens the data profile for the table 
-- View names and schemas
 
+### 4. Clicking on a table name opens the Column Browser for that table
 
-
-### 3. Column Browser
+Column Browser
 
 Select a table to view detailed column information:
 - Column names and data types
@@ -59,10 +57,13 @@ From here you can:
 - Generate `CREATE TABLE` scripts
 - Navigate to data profiling
 
-![Column Browser Screenshot](Docs/screenshots/column-browser.png)
+![Column Browser Screenshot](Docs/screenshots/3-column-browser.png)
 *Screenshot placeholder: Column Browser showing table columns*
 
-### 4. Data Profiling
+
+### 5. Clicking on the "Profile Info" link beside a table name opens the data profile for the table 
+
+Data Profiling
 
 Analyze actual data in the selected table:
 - **Count Statistics** - Total rows, null counts, distinct values
@@ -72,10 +73,10 @@ Analyze actual data in the selected table:
 - **Value Frequency** - Most common values with counts and percentages
 - **ID Column Detection** - Automatic handling of identifier columns
 
-![Data Profiling Screenshot](Docs/screenshots/data-profiling.png)
+![Data Profiling Screenshot](Docs/screenshots/4-data-profiling.png)
 *Screenshot placeholder: Data Profiling page showing column statistics*
 
-### 5. Relationship Browser
+### 6. Relationship Browser
 
 Explore table relationships and database structure:
 - **Explicit Relationships** - Foreign keys defined in the database schema
@@ -88,10 +89,10 @@ From the Relationships page you can:
 - Navigate to related tables
 - Generate relationship reports
 
-![Relationships Browser Screenshot](Docs/screenshots/relationships-browser.png)
+![Relationships Browser Screenshot](Docs/screenshots/5-relationships.png)
 *Screenshot placeholder: Relationships Browser showing foreign key relationships*
 
-### 6. Excel Report Generation
+### 7. Excel Report Generation
 
 Generate comprehensive Excel workbooks for multiple report types:
 
@@ -108,12 +109,12 @@ Generate comprehensive Excel workbooks for multiple report types:
 
 **Report Confirmation Page:**
 
-![Reports Confirm Screenshot](Docs/screenshots/reports-confirm.png)
+![Reports Confirm Screenshot](Docs/screenshots/6-reports-confirm.png)
 *Screenshot placeholder: Reports confirmation page showing selected tables*
 
 **Sample Excel Report:**
 
-![Excel Report Screenshot](Docs/screenshots/excel-report.png)
+![Excel Report Screenshot](Docs/screenshots/7-excel-report.png)
 *Screenshot placeholder: Excel report showing summary and detail sheets*
 
 ### 7. Entity-Relationship Diagram (ERD) Export
@@ -125,7 +126,7 @@ Generate ERD diagrams for documentation and analysis:
 - **Relationship Options** - Include explicit foreign keys and/or suggested relationships
 - **Multi-Format Download** - Export both formats simultaneously or individually
 
-![ERD Export Screenshot](Docs/screenshots/erd-export.png)
+![ERD Export Screenshot](Docs/screenshots/8-ERD.png)
 *Screenshot placeholder: ERD export page with table selection and format options*
 
 ## Technology Stack
