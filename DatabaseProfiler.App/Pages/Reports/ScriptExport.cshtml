@@ -1,0 +1,380 @@
+@page
+@model DatabaseProfiler.App.Pages.Reports.ScriptExportModel
+@{
+    ViewData["Title"] = "Script Export (ZIP)";
+}
+
+<h1>Script Export (ZIP)</h1>
+
+<div class="mb-3">
+    <a asp-page="/Reports/Index" class="btn btn-outline-secondary btn-sm">Back to reports</a>
+</div>
+
+<p class="text-muted">
+    Generate a ZIP package of SQL scripts for selected object kinds.
+    The download includes one script file per object, a <strong>COMBINED.sql</strong> file with <strong>GO</strong> separators, and a manifest.
+</p>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-info" role="alert">
+        @Model.StatusMessage
+    </div>
+}
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-3">Server</dt>
+            <dd class="col-sm-9">@Model.ServerName</dd>
+
+            <dt class="col-sm-3">Database</dt>
+            <dd class="col-sm-9">@Model.DatabaseName</dd>
+        </dl>
+    </div>
+</div>
+
+<form method="post" asp-page-handler="Generate" class="card shadow-sm">
+    <input type="hidden" asp-for="SelectedDatabaseName" />
+    <div class="card-header">Select objects to export</div>
+    <div class="card-body">
+        <p class="text-muted mb-3">
+            Choose the specific tables, views, stored procedures, functions, and user-defined types to include in the ZIP package.
+            The export also includes COMBINED.sql with GO separators.
+        </p>
+
+        <div class="accordion script-export-accordion" id="script-export-accordion">
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="script-export-tables-heading">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#script-export-tables-collapse" aria-expanded="false" aria-controls="script-export-tables-collapse">
+                        Tables (@Model.Browser.TableCount)
+                    </button>
+                </h2>
+                <div id="script-export-tables-collapse" class="accordion-collapse collapse" aria-labelledby="script-export-tables-heading" data-bs-parent="#script-export-accordion">
+                    <div class="accordion-body p-0">
+                        <div class="d-flex justify-content-end gap-2 p-3 border-bottom">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-script-export-toggle-all data-script-export-target="#script-export-tables-collapse">Select all</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-script-export-clear-all data-script-export-target="#script-export-tables-collapse">Clear all</button>
+                        </div>
+                        @if (Model.Browser.Tables.Count == 0)
+                        {
+                            <div class="p-3 text-muted">No tables were found.</div>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0 align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 2rem;"></th>
+                                            <th>Table</th>
+                                            <th class="text-end">Rows</th>
+                                            <th class="text-end">Columns</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var table in Model.Browser.Tables)
+                                        {
+                                            var selectionValue = Model.CreateTableSelectionValue(table);
+                                            <tr>
+                                                <td>
+                                                    <input class="form-check-input" type="checkbox" name="SelectedObjectValues" value="@selectionValue" @(Model.IsSelected(selectionValue) ? "checked=\"checked\"" : null) />
+                                                </td>
+                                                <td>@table.DisplayName</td>
+                                                <td class="text-end">@table.RowCount</td>
+                                                <td class="text-end">@table.ColumnCount</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="script-export-views-heading">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#script-export-views-collapse" aria-expanded="false" aria-controls="script-export-views-collapse">
+                        Views (@Model.ViewCount)
+                    </button>
+                </h2>
+                <div id="script-export-views-collapse" class="accordion-collapse collapse" aria-labelledby="script-export-views-heading" data-bs-parent="#script-export-accordion">
+                    <div class="accordion-body p-0">
+                        <div class="d-flex justify-content-end gap-2 p-3 border-bottom">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-script-export-toggle-all data-script-export-target="#script-export-views-collapse">Select all</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-script-export-clear-all data-script-export-target="#script-export-views-collapse">Clear all</button>
+                        </div>
+                        @if (Model.Browser.Views.Count == 0)
+                        {
+                            <div class="p-3 text-muted">No views were found.</div>
+                        }
+                        else
+                        {
+                            <table class="table table-sm table-hover mb-0 align-middle">
+                                <tbody>
+                                    @foreach (var view in Model.Browser.Views)
+                                    {
+                                        var selectionValue = Model.CreateObjectSelectionValue("View", view.SchemaName, view.Name);
+                                        <tr>
+                                            <td style="width: 2rem;">
+                                                <input class="form-check-input" type="checkbox" name="SelectedObjectValues" value="@selectionValue" @(Model.IsSelected(selectionValue) ? "checked=\"checked\"" : null) />
+                                            </td>
+                                            <td>@view.DisplayName</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="script-export-sprocs-heading">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#script-export-sprocs-collapse" aria-expanded="false" aria-controls="script-export-sprocs-collapse">
+                        Stored Procedures (@Model.StoredProcedureCount)
+                    </button>
+                </h2>
+                <div id="script-export-sprocs-collapse" class="accordion-collapse collapse" aria-labelledby="script-export-sprocs-heading" data-bs-parent="#script-export-accordion">
+                    <div class="accordion-body p-0">
+                        <div class="d-flex justify-content-end gap-2 p-3 border-bottom">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-script-export-toggle-all data-script-export-target="#script-export-sprocs-collapse">Select all</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-script-export-clear-all data-script-export-target="#script-export-sprocs-collapse">Clear all</button>
+                        </div>
+                        @if (Model.Browser.StoredProcedures.Count == 0)
+                        {
+                            <div class="p-3 text-muted">No stored procedures were found.</div>
+                        }
+                        else
+                        {
+                            <table class="table table-sm table-hover mb-0 align-middle">
+                                <tbody>
+                                    @foreach (var storedProcedure in Model.Browser.StoredProcedures)
+                                    {
+                                        var selectionValue = Model.CreateObjectSelectionValue("StoredProcedure", storedProcedure.SchemaName, storedProcedure.Name);
+                                        <tr>
+                                            <td style="width: 2rem;">
+                                                <input class="form-check-input" type="checkbox" name="SelectedObjectValues" value="@selectionValue" @(Model.IsSelected(selectionValue) ? "checked=\"checked\"" : null) />
+                                            </td>
+                                            <td>
+                                                @storedProcedure.DisplayName
+                                                @if (storedProcedure.DisplayName.Equals("dbo.usp_ProfileTable", StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    <span class="text-muted small">(used for table profiling)</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="script-export-functions-heading">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#script-export-functions-collapse" aria-expanded="false" aria-controls="script-export-functions-collapse">
+                        Functions (@Model.FunctionCount)
+                    </button>
+                </h2>
+                <div id="script-export-functions-collapse" class="accordion-collapse collapse" aria-labelledby="script-export-functions-heading" data-bs-parent="#script-export-accordion">
+                    <div class="accordion-body p-0">
+                        <div class="d-flex justify-content-end gap-2 p-3 border-bottom">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-script-export-toggle-all data-script-export-target="#script-export-functions-collapse">Select all</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-script-export-clear-all data-script-export-target="#script-export-functions-collapse">Clear all</button>
+                        </div>
+                        @if (Model.Browser.Functions.Count == 0)
+                        {
+                            <div class="p-3 text-muted">No functions were found.</div>
+                        }
+                        else
+                        {
+                            <table class="table table-sm table-hover mb-0 align-middle">
+                                <tbody>
+                                    @foreach (var function in Model.Browser.Functions)
+                                    {
+                                        var selectionValue = Model.CreateObjectSelectionValue("Function", function.SchemaName, function.Name);
+                                        <tr>
+                                            <td style="width: 2rem;">
+                                                <input class="form-check-input" type="checkbox" name="SelectedObjectValues" value="@selectionValue" @(Model.IsSelected(selectionValue) ? "checked=\"checked\"" : null) />
+                                            </td>
+                                            <td>@function.DisplayName</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="script-export-types-heading">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#script-export-types-collapse" aria-expanded="false" aria-controls="script-export-types-collapse">
+                        User-Defined Types (@Model.UserDefinedTypeCount)
+                    </button>
+                </h2>
+                <div id="script-export-types-collapse" class="accordion-collapse collapse" aria-labelledby="script-export-types-heading" data-bs-parent="#script-export-accordion">
+                    <div class="accordion-body p-0">
+                        <div class="d-flex justify-content-end gap-2 p-3 border-bottom">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-script-export-toggle-all data-script-export-target="#script-export-types-collapse">Select all</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-script-export-clear-all data-script-export-target="#script-export-types-collapse">Clear all</button>
+                        </div>
+                        @if (Model.Browser.UserDefinedTypes.Count == 0)
+                        {
+                            <div class="p-3 text-muted">No user-defined types were found.</div>
+                        }
+                        else
+                        {
+                            <table class="table table-sm table-hover mb-0 align-middle">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 2rem;"></th>
+                                        <th>Type</th>
+                                        <th>Base Type</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var userDefinedType in Model.Browser.UserDefinedTypes)
+                                    {
+                                        var selectionValue = Model.CreateObjectSelectionValue("UserDefinedType", userDefinedType.SchemaName, userDefinedType.Name);
+                                        <tr>
+                                            <td>
+                                                <input class="form-check-input" type="checkbox" name="SelectedObjectValues" value="@selectionValue" @(Model.IsSelected(selectionValue) ? "checked=\"checked\"" : null) />
+                                            </td>
+                                            <td>@userDefinedType.DisplayName</td>
+                                            <td>@userDefinedType.BaseTypeDisplay</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-muted small mt-3">
+            Each scripted object is written as its own .sql file. The combined script is ordered and separated with GO statements for easy execution in SSMS.
+        </div>
+    </div>
+    <div class="card-footer d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary" data-script-export-download @(Model.HasSelection ? null : "disabled")>Download ZIP package</button>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        (() => {
+            const selectStates = new Map();
+            const clearStates = new Map();
+            const downloadButton = document.querySelector('[data-script-export-download]');
+
+            const getSectionCheckboxes = (targetSelector) => {
+                const section = document.querySelector(targetSelector);
+                if (!(section instanceof HTMLElement)) {
+                    return [];
+                }
+
+                return Array.from(section.querySelectorAll('input[type="checkbox"][name="SelectedObjectValues"]'))
+                    .filter((checkbox) => checkbox instanceof HTMLInputElement);
+            };
+
+            const captureState = (targetSelector) => getSectionCheckboxes(targetSelector).map((checkbox) => checkbox.checked);
+
+            const restoreState = (targetSelector, checkedStates) => {
+                const checkboxes = getSectionCheckboxes(targetSelector);
+                checkboxes.forEach((checkbox, index) => {
+                    checkbox.checked = checkedStates[index] === true;
+                });
+            };
+
+            const setSectionCheckboxes = (targetSelector, checked) => {
+                getSectionCheckboxes(targetSelector).forEach((checkbox) => {
+                    checkbox.checked = checked;
+                });
+            };
+
+            const setButtonLabel = (button, label) => {
+                button.textContent = label;
+            };
+
+            const updateDownloadButtonState = () => {
+                if (!(downloadButton instanceof HTMLButtonElement)) {
+                    return;
+                }
+
+                const hasSelectedObjects = document.querySelectorAll('input[type="checkbox"][name="SelectedObjectValues"]:checked').length > 0;
+                downloadButton.disabled = !hasSelectedObjects;
+            };
+
+            document.querySelectorAll('[data-script-export-toggle-all]').forEach((button) => {
+                if (!(button instanceof HTMLButtonElement)) {
+                    return;
+                }
+
+                const targetSelector = button.dataset.scriptExportTarget;
+                if (!targetSelector) {
+                    return;
+                }
+
+                setButtonLabel(button, 'Select all');
+
+                button.addEventListener('click', () => {
+                    const cached = selectStates.get(targetSelector);
+                    if (cached) {
+                        restoreState(targetSelector, cached);
+                        selectStates.delete(targetSelector);
+                        setButtonLabel(button, 'Select all');
+                        updateDownloadButtonState();
+                        return;
+                    }
+
+                    selectStates.set(targetSelector, captureState(targetSelector));
+                    setSectionCheckboxes(targetSelector, true);
+                    setButtonLabel(button, 'Restore original');
+                    updateDownloadButtonState();
+                });
+            });
+
+            document.querySelectorAll('[data-script-export-clear-all]').forEach((button) => {
+                if (!(button instanceof HTMLButtonElement)) {
+                    return;
+                }
+
+                const targetSelector = button.dataset.scriptExportTarget;
+                if (!targetSelector) {
+                    return;
+                }
+
+                setButtonLabel(button, 'Clear all');
+
+                button.addEventListener('click', () => {
+                    const cached = clearStates.get(targetSelector);
+                    if (cached) {
+                        restoreState(targetSelector, cached);
+                        clearStates.delete(targetSelector);
+                        setButtonLabel(button, 'Clear all');
+                        updateDownloadButtonState();
+                        return;
+                    }
+
+                    clearStates.set(targetSelector, captureState(targetSelector));
+                    setSectionCheckboxes(targetSelector, false);
+                    setButtonLabel(button, 'Restore original');
+                    updateDownloadButtonState();
+                });
+            });
+
+            document.querySelectorAll('input[type="checkbox"][name="SelectedObjectValues"]').forEach((checkbox) => {
+                if (checkbox instanceof HTMLInputElement) {
+                    checkbox.addEventListener('change', updateDownloadButtonState);
+                }
+            });
+
+            updateDownloadButtonState();
+        })();
+    </script>
+}
