@@ -117,28 +117,8 @@ public class IndexModel : PageModel
             return;
         }
 
-        var discovery = await _schemaDiscoveryService.DiscoverRelationshipsAsync(connection, SelectedDatabaseName, cancellationToken);
-
-        // Apply confidence filter to suggested relationships
-        var filteredRelationships = discovery.Relationships.Where(r =>
-        {
-            if (r.Type == RelationshipType.Explicit)
-                return true; // Always show explicit relationships
-
-            // Filter suggested relationships by confidence
-            if (r.Confidence == ConfidenceLevel.High && ShowHighConfidence)
-                return true;
-            if (r.Confidence == ConfidenceLevel.Medium && ShowMediumConfidence)
-                return true;
-
-            return false;
-        }).ToList();
-
-        // Create a filtered view model
-        ViewModel = new RelationshipBrowserViewModel
-        {
-            Relationships = filteredRelationships
-        };
+        // Load all relationships (no filtering here - will be done client-side)
+        ViewModel = await _schemaDiscoveryService.DiscoverRelationshipsAsync(connection, SelectedDatabaseName, cancellationToken);
 
         StatusMessage = null;
     }

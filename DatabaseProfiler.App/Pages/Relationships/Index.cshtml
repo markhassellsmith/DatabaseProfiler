@@ -35,21 +35,7 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <h5 class="card-title">
-                        Summary
-                        @if (!Model.ShowMediumConfidence && Model.ShowHighConfidence)
-                        {
-                            <small class="text-muted">(Showing High Confidence Only)</small>
-                        }
-                        else if (Model.ShowMediumConfidence && !Model.ShowHighConfidence)
-                        {
-                            <small class="text-muted">(Showing Medium Confidence Only)</small>
-                        }
-                        else if (!Model.ShowHighConfidence && !Model.ShowMediumConfidence)
-                        {
-                            <small class="text-warning">(⚠ All Suggested Relationships Filtered)</small>
-                        }
-                    </h5>
+                    <h5 class="card-title">Summary</h5>
                     <div class="row">
                         <div class="col-md-2">
                             <strong>Total Relationships:</strong> @Model.ViewModel.RelationshipCount
@@ -227,42 +213,34 @@
         </h3>
 
         <!-- Confidence Filter Controls -->
-        <form method="get" class="mb-3">
-            <input type="hidden" name="SelectedDatabaseName" value="@Model.SelectedDatabaseName" />
+        <div class="mb-3">
             <div class="card">
                 <div class="card-body">
                     <div class="row align-items-center">
-                        <div class="col-md-6">
-                            <strong>🔍 Filter by Confidence Level:</strong>
-                            <div class="form-check form-check-inline ms-3">
-                                <input class="form-check-input" type="checkbox" name="ShowHighConfidence" 
-                                       id="showHighConfidence" value="true" 
-                                       @(Model.ShowHighConfidence ? "checked" : "") 
-                                       onchange="this.form.submit()" />
-                                <label class="form-check-label" for="showHighConfidence">
-                                    <span class="badge bg-success">💡 High</span> Exact table name match
+                        <div class="col-md-9 d-flex align-items-center flex-wrap">
+                            <strong class="me-4 text-nowrap">🔍 Filter by Confidence Level:</strong>
+                            <div class="form-check form-check-inline mb-0">
+                                <input class="form-check-input confidence-filter" type="checkbox" 
+                                       id="showHighConfidence" value="high" checked />
+                                <label class="form-check-label text-nowrap" for="showHighConfidence">
+                                    <span class="badge bg-success">💡 High</span> Column = TableName + ID
                                 </label>
                             </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" name="ShowMediumConfidence" 
-                                       id="showMediumConfidence" value="true" 
-                                       @(Model.ShowMediumConfidence ? "checked" : "") 
-                                       onchange="this.form.submit()" />
-                                <label class="form-check-label" for="showMediumConfidence">
-                                    <span class="badge bg-warning">💡 Medium</span> Partial name match
+                            <div class="form-check form-check-inline mb-0">
+                                <input class="form-check-input confidence-filter" type="checkbox" 
+                                       id="showMediumConfidence" value="medium" />
+                                <label class="form-check-label text-nowrap" for="showMediumConfidence">
+                                    <span class="badge bg-warning">💡 Medium</span> Column contains TableName
                                 </label>
                             </div>
                         </div>
-                        <div class="col-md-6 text-end">
-                            @if (!suggestedRelationships.Any())
-                            {
-                                <span class="text-muted">No relationships match the selected filters</span>
-                            }
+                        <div class="col-md-3 text-end">
+                            <span id="filterStatus" class="text-muted"></span>
                         </div>
                     </div>
                 </div>
             </div>
-        </form>
+        </div>
 
         <!-- Help Section -->
         <div class="alert alert-info mb-3" role="alert">
@@ -274,11 +252,11 @@
                     <ul class="mb-0 small">
                         <li>
                             <span class="badge bg-success">💡 High</span>
-                            <strong>Exact table name match</strong> - e.g., <code>CustomerID</code> → <code>Customer.ID</code> or <code>Customer.CustomerID</code>
+                            <strong>Child column = Parent table name + "ID"</strong> - e.g., <code>CustomerID</code> → <code>Customer.ID</code> or <code>Customer.CustomerID</code>
                         </li>
                         <li class="mt-1">
                             <span class="badge bg-warning">💡 Medium</span>
-                            <strong>Partial name match</strong> - e.g., column contains table name and ends with <code>ID</code>
+                            <strong>Child column contains parent table name</strong> - e.g., <code>PrimaryCustomerID</code> or <code>Customer_ID</code> → <code>Customer.ID</code>
                         </li>
                     </ul>
                     <small class="text-muted">All suggestions match data types and exclude existing foreign keys.</small>
@@ -308,7 +286,9 @@
                 <tbody>
                     @foreach (var relationship in suggestedRelationships)
                     {
-                        <tr>
+                        var confidenceLevel = relationship.Confidence == DatabaseProfiler.App.Models.ConfidenceLevel.High ? "high" : 
+                                            relationship.Confidence == DatabaseProfiler.App.Models.ConfidenceLevel.Medium ? "medium" : "low";
+                        <tr data-confidence="@confidenceLevel">
                             <td>@relationship.ParentTableDisplay</td>
                             <td><code>@relationship.ParentColumn</code></td>
                             <td class="text-center">←</td>
@@ -426,7 +406,53 @@
 
             // Setup scrollbars and search for suggested table
             setupTableScrollAndSearch('suggestedTable', 'tableContainerSuggested', 'scrollTopSuggested', 'scrollTopSuggestedInner', searchInput);
+
+            // Setup confidence filtering
+            setupConfidenceFilter();
         });
+
+        function setupConfidenceFilter() {
+            const suggestedTable = document.getElementById('suggestedTable');
+            if (!suggestedTable) return;
+
+            const filterCheckboxes = document.querySelectorAll('.confidence-filter');
+            const filterStatus = document.getElementById('filterStatus');
+
+            function applyConfidenceFilter() {
+                const selectedConfidences = Array.from(filterCheckboxes)
+                    .filter(cb => cb.checked)
+                    .map(cb => cb.value);
+
+                const rows = suggestedTable.querySelectorAll('tbody tr');
+                let visibleCount = 0;
+
+                rows.forEach(row => {
+                    const confidence = row.getAttribute('data-confidence');
+                    if (selectedConfidences.includes(confidence)) {
+                        row.style.display = '';
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+
+                // Update filter status
+                if (visibleCount === 0) {
+                    filterStatus.textContent = 'No relationships match the selected filters';
+                    filterStatus.className = 'text-muted';
+                } else {
+                    filterStatus.textContent = '';
+                }
+            }
+
+            // Apply filter when checkboxes change
+            filterCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', applyConfidenceFilter);
+            });
+
+            // Apply initial filter
+            applyConfidenceFilter();
+        }
 
         function setupTableScrollAndSearch(tableId, containerId, scrollTopId, scrollTopInnerId, searchInput) {
             const table = document.getElementById(tableId);
