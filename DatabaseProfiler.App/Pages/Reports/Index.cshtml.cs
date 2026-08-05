@@ -49,11 +49,11 @@ public class IndexModel : PageModel
                 "Open diagram export",
                 "/ERD/Index"),
             new ReportChoiceViewModel(
-                "Script Report",
-                "Generate plain text scripts for views, functions, and stored procedures.",
-                "Text",
-                "Coming soon",
-                null)
+                "Script Export (ZIP)",
+                "Generate ZIP packages of SQL scripts for selected objects, including COMBINED.sql with GO separators.",
+                "ZIP | SQL",
+                "Open script export",
+                "/Reports/ScriptExport")
         ];
     }
 }

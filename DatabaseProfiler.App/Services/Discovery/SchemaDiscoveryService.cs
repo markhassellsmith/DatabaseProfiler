@@ -168,6 +168,44 @@ public sealed class SchemaDiscoveryService
         };
     }
 
+    public async Task<string?> DiscoverObjectScriptAsync(
+        ConnectionSessionModel connection,
+        string databaseName,
+        string objectKind,
+        string objectSchemaName,
+        string objectName,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+
+        if (string.IsNullOrWhiteSpace(connection.ServerName))
+        {
+            throw new InvalidOperationException("A server name is required before script discovery can run.");
+        }
+
+        if (string.IsNullOrWhiteSpace(databaseName))
+        {
+            throw new InvalidOperationException("A database name is required before script discovery can run.");
+        }
+
+        if (string.IsNullOrWhiteSpace(objectKind))
+        {
+            throw new InvalidOperationException("An object kind is required before script discovery can run.");
+        }
+
+        if (string.IsNullOrWhiteSpace(objectSchemaName))
+        {
+            throw new InvalidOperationException("An object schema name is required before script discovery can run.");
+        }
+
+        if (string.IsNullOrWhiteSpace(objectName))
+        {
+            throw new InvalidOperationException("An object name is required before script discovery can run.");
+        }
+
+        return await LoadObjectScriptAsync(connection, databaseName, objectKind, objectSchemaName, objectName, cancellationToken);
+    }
+
     public async Task<SchemaBrowserViewModel> DiscoverAsync(
         ConnectionSessionModel connection,
         string databaseName,

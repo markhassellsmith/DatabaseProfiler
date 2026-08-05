@@ -1,4 +1,5 @@
 using DatabaseProfiler.App.Services.Reporting;
+using DatabaseProfiler.App.Services.Scripting;
 using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,6 +25,7 @@ builder.Services.AddSingleton<DatabaseProfiler.App.Services.Profiling.TableProfi
 builder.Services.AddSingleton<DatabaseProfiler.App.Services.Reporting.TableReportService>();
 builder.Services.AddSingleton<DatabaseProfiler.App.Services.Reporting.RelationshipReportService>();
 builder.Services.AddSingleton<DatabaseProfiler.App.Services.Reporting.ErdGenerationService>();
+builder.Services.AddSingleton<DatabaseProfiler.App.Services.Scripting.ScriptExportService>();
 builder.Services.AddSingleton<DatabaseProfiler.App.Services.Reporting.TableReportJobStore>();
 builder.Services.AddSingleton<ITableReportJobQueue, TableReportJobQueue>();
 builder.Services.AddHostedService<TableReportBackgroundService>();

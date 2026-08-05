@@ -6,6 +6,8 @@ public sealed class UserDefinedTypeModel
 
     public string SchemaName { get; set; } = string.Empty;
 
+    public string SelectionValue => string.IsNullOrWhiteSpace(SchemaName) ? Name : $"{SchemaName}|{Name}";
+
     public string DisplayName => string.IsNullOrWhiteSpace(SchemaName) ? Name : $"{SchemaName}.{Name}";
 
     public string BaseTypeName { get; set; } = string.Empty;
