@@ -1101,14 +1101,31 @@ public sealed class SchemaDiscoveryService
                     parent_type = TYPE_NAME(parent_c.user_type_id),
                     -- Calculate confidence based on naming patterns
                     confidence = CASE
+                        -- Exclude generic ID -> ID matches completely (too ambiguous)
+                        WHEN child_c.name IN ('ID', 'Id') AND parent_c.name IN ('ID', 'Id') THEN 'Excluded'
+
                         -- High confidence: exact table name match (e.g., CustomerID -> Customer.CustomerID or Customer.ID)
-                        WHEN child_c.name = parent_t.name + 'ID' AND parent_c.name IN ('ID', parent_t.name + 'ID') THEN 'High'
-                        WHEN child_c.name = parent_t.name + '_ID' AND parent_c.name IN ('ID', parent_t.name + '_ID') THEN 'High'
+                        -- BUT: child column must be more specific than just ID
+                        WHEN child_c.name = parent_t.name + 'ID' 
+                             AND parent_c.name IN ('ID', parent_t.name + 'ID')
+                             AND child_c.name NOT IN ('ID', 'Id') THEN 'High'
+                        WHEN child_c.name = parent_t.name + '_ID' 
+                             AND parent_c.name IN ('ID', parent_t.name + '_ID')
+                             AND child_c.name NOT IN ('ID', 'Id') THEN 'High'
+
                         -- Medium confidence: partial match or ID suffix
-                        WHEN child_c.name LIKE '%' + parent_t.name + '%' AND child_c.name LIKE '%ID' THEN 'Medium'
-                        WHEN child_c.name LIKE parent_t.name + '%' AND parent_c.name = 'ID' THEN 'Medium'
-                        -- Low confidence: just ID suffix match
-                        WHEN child_c.name LIKE '%ID' AND parent_c.name = 'ID' AND child_c.name <> 'ID' THEN 'Low'
+                        -- BUT: Require child column to be more specific than just ID and end with ID/id pattern
+                        WHEN child_c.name LIKE '%' + parent_t.name + '%' 
+                             AND (child_c.name LIKE '%ID' OR child_c.name LIKE '%_ID')
+                             AND child_c.name NOT IN ('ID', 'Id')
+                             AND LEN(child_c.name) > 2 THEN 'Medium'
+                        WHEN child_c.name LIKE parent_t.name + '%' 
+                             AND parent_c.name = 'ID' 
+                             AND child_c.name NOT IN ('ID', 'Id')
+                             AND (child_c.name LIKE '%ID' OR child_c.name LIKE '%_ID')
+                             AND LEN(child_c.name) > 2 THEN 'Medium'
+
+                        -- Low confidence: everything else
                         ELSE 'Low'
                     END
                 FROM sys.tables child_t
@@ -1142,8 +1159,8 @@ public sealed class SchemaDiscoveryService
                 parent_column,
                 confidence
             FROM PotentialFKs
-            WHERE confidence IN ('High', 'Medium')  -- Only include Medium and High confidence
-            ORDER BY 
+            WHERE confidence IN ('High', 'Medium')  -- Only include Medium and High confidence, exclude 'Excluded' and 'Low'
+            ORDER BY
                 confidence DESC,
                 parent_schema,
                 parent_table,

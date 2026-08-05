@@ -35,7 +35,21 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <h5 class="card-title">Summary</h5>
+                    <h5 class="card-title">
+                        Summary
+                        @if (!Model.ShowMediumConfidence && Model.ShowHighConfidence)
+                        {
+                            <small class="text-muted">(Showing High Confidence Only)</small>
+                        }
+                        else if (Model.ShowMediumConfidence && !Model.ShowHighConfidence)
+                        {
+                            <small class="text-muted">(Showing Medium Confidence Only)</small>
+                        }
+                        else if (!Model.ShowHighConfidence && !Model.ShowMediumConfidence)
+                        {
+                            <small class="text-warning">(⚠ All Suggested Relationships Filtered)</small>
+                        }
+                    </h5>
                     <div class="row">
                         <div class="col-md-2">
                             <strong>Total Relationships:</strong> @Model.ViewModel.RelationshipCount
@@ -205,12 +219,50 @@
     }
 
     @* Suggested Relationships *@
-    @if (suggestedRelationships.Any())
+    @if (suggestedRelationships.Any() || (!Model.ShowHighConfidence && !Model.ShowMediumConfidence))
     {
         <h3 class="mt-5 mb-3">
             Suggested Relationships (@suggestedRelationships.Count)
             <small class="text-muted">- Based on naming patterns</small>
         </h3>
+
+        <!-- Confidence Filter Controls -->
+        <form method="get" class="mb-3">
+            <input type="hidden" name="SelectedDatabaseName" value="@Model.SelectedDatabaseName" />
+            <div class="card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <strong>🔍 Filter by Confidence Level:</strong>
+                            <div class="form-check form-check-inline ms-3">
+                                <input class="form-check-input" type="checkbox" name="ShowHighConfidence" 
+                                       id="showHighConfidence" value="true" 
+                                       @(Model.ShowHighConfidence ? "checked" : "") 
+                                       onchange="this.form.submit()" />
+                                <label class="form-check-label" for="showHighConfidence">
+                                    <span class="badge bg-success">💡 High</span> Exact table name match
+                                </label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" name="ShowMediumConfidence" 
+                                       id="showMediumConfidence" value="true" 
+                                       @(Model.ShowMediumConfidence ? "checked" : "") 
+                                       onchange="this.form.submit()" />
+                                <label class="form-check-label" for="showMediumConfidence">
+                                    <span class="badge bg-warning">💡 Medium</span> Partial name match
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            @if (!suggestedRelationships.Any())
+                            {
+                                <span class="text-muted">No relationships match the selected filters</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
 
         <!-- Help Section -->
         <div class="alert alert-info mb-3" role="alert">
@@ -234,12 +286,14 @@
             </div>
         </div>
 
-        <!-- Top scrollbar for suggested -->
-        <div class="table-scroll-top" id="scrollTopSuggested">
-            <div id="scrollTopSuggestedInner"></div>
-        </div>
+        @if (suggestedRelationships.Any())
+        {
+            <!-- Top scrollbar for suggested -->
+            <div class="table-scroll-top" id="scrollTopSuggested">
+                <div id="scrollTopSuggestedInner"></div>
+            </div>
 
-        <div class="table-responsive" id="tableContainerSuggested">
+            <div class="table-responsive" id="tableContainerSuggested">
             <table class="table table-hover table-sm compact-table suggested-table" id="suggestedTable">
                 <thead>
                     <tr>
@@ -284,19 +338,20 @@
                                           title="Generic ID pattern match">
                                         💡 Low
                                     </span>
+                                                                 }
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        }
+                                    }
                                 }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    }
-}
-else
-{
-    <p>No database selected. Please select a database from the home page.</p>
-}
+                                else
+                                {
+                                    <p>No database selected. Please select a database from the home page.</p>
+                                }
 
 @section Scripts {
     <style>
